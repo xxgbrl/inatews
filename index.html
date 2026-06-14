@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InaTEWS · BMKG</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    padding: 16px;
+    min-height: 100vh;
+  }
+
+  .container { max-width: 860px; margin: 0 auto; }
+
+  header {
+    text-align: center;
+    margin-bottom: 24px;
+    padding-top: 8px;
+  }
+  header h1 {
+    font-size: clamp(20px, 5vw, 28px);
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: 0.5px;
+  }
+  header p {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 4px;
+  }
+
+  .section {
+    background: #1e2330;
+    border: 1px solid #2d3448;
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .section h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 14px;
+    padding-left: 10px;
+    border-left: 3px solid #ef4444;
+  }
+
+  /* HIGHLIGHT CARD (gempa terbaru di tiap section) */
+  .highlight-card {
+    background: #252d3d;
+    border: 1px solid #3d4a63;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .highlight-card .mag {
+    font-size: 32px;
+    font-weight: 800;
+    color: #ef4444;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .highlight-card p {
+    font-size: 13px;
+    color: #cbd5e1;
+    margin: 3px 0;
+    line-height: 1.5;
+  }
+  .highlight-card p strong { color: #94a3b8; font-weight: 500; }
+  .highlight-card img {
+    width: 160px;
+    min-width: 120px;
+    border-radius: 8px;
+    align-self: flex-start;
+    flex-shrink: 0;
+  }
+  .card-flex {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .card-info { flex: 1; min-width: 180px; }
+  .card-info p {
+    display: flex;
+    gap: 8px;
+    margin: 4px 0;
+    font-size: 13px;
+    color: #cbd5e1;
+    line-height: 1.5;
+  }
+  .card-info p strong {
+    color: #64748b;
+    font-weight: 500;
+    min-width: 80px;
+    flex-shrink: 0;
+  }
+  .card-info p span { color: #e2e8f0; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    padding: 8px 10px;
+    text-align: left;
+    color: #64748b;
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #2d3448;
+    white-space: nowrap;
+  }
+  td {
+    padding: 10px 10px;
+    border-bottom: 1px solid #1e2330;
+    color: #cbd5e1;
+    vertical-align: middle;
+    line-height: 1.4;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr.latest-row td { background: #252d3d; }
+  tr:hover td { background: #232a38; }
+
+  .mag-badge {
+    display: inline-block;
+    background: #7f1d1d;
+    color: #fca5a5;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  /* STATUS */
+  .status-chip {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: #1e3a2f;
+    color: #6ee7b7;
+    font-weight: 500;
+    text-transform: capitalize;
+  }
+
+  /* COPY BUTTON */
+  .copy-btn {
+    display: inline-block;
+    padding: 4px 10px;
+    background: #2d3448;
+    color: #94a3b8;
+    border: 1px solid #3d4a63;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+  }
+  .copy-btn:hover { background: #3d4a63; color: #e2e8f0; }
+  .copy-btn.lg {
+    padding: 7px 16px;
+    font-size: 13px;
+    margin-top: 10px;
+  }
+
+  /* SHOW MORE BUTTON */
+  .show-more-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 9px;
+    background: transparent;
+    color: #64748b;
+    border: 1px dashed #2d3448;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .show-more-btn:hover { border-color: #3d4a63; color: #94a3b8; background: #1a2030; }
+
+  /* LOADING / ERROR */
+  .loading, .error {
+    text-align: center;
+    padding: 24px;
+    font-size: 13px;
+    color: #475569;
+  }
+  .error { color: #f87171; }
+
+  /* FOOTER */
+  footer {
+    text-align: center;
+    font-size: 11px;
+    color: #374151;
+    margin-top: 20px;
+    padding-bottom: 16px;
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(12px);
+    background: #1e2330;
+    border: 1px solid #3d4a63;
+    color: #e2e8f0;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    z-index: 9999;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* RESPONSIVE */
+  @media (max-width: 520px) {
+    body { padding: 10px; }
+    .section { padding: 14px 12px; }
+    td, th { padding: 8px 6px; font-size: 12px; }
+    .highlight-card .mag { font-size: 26px; }
+  }
+
+  /* MAP */
+  #map {
+    width: 100%;
+    height: 420px;
+    border-radius: 10px;
+    border: 1px solid #2d3448;
+    background: #1a1f2e;
+  }
+  @media (max-width: 520px) { #map { height: 300px; } }
+
+  .map-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #94a3b8;
+  }
+  .map-legend span { display: flex; align-items: center; gap: 5px; }
+  .legend-line {
+    display: inline-block;
+    width: 22px; height: 3px;
+    background: #f97316;
+    border-radius: 2px;
+  }
+  .legend-dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #ef4444;
+    border: 2px solid #fff3;
+  }
+
+  /* TSUNAMI CARD */
+  .tsunami-card {
+    background: #1e2a1e;
+    border: 1px solid #2d4a2d;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .tsunami-card.warning {
+    background: #2a1e1e;
+    border-color: #6b2020;
+  }
+  .tsunami-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 20px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .tsunami-badge.ended  { background: #1e3a2f; color: #6ee7b7; }
+  .tsunami-badge.active { background: #7f1d1d; color: #fca5a5; }
+  .tsunami-subject {
+    font-size: 14px;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 6px;
+  }
+  .tsunami-desc {
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.6;
+    margin-bottom: 8px;
+  }
+  .tsunami-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 10px;
+  }
+  .tsunami-meta span { display: flex; align-items: center; gap: 4px; }
+  .tsunami-maps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .tsunami-maps img {
+    height: 90px;
+    border-radius: 6px;
+    border: 1px solid #2d3448;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .tsunami-maps img:hover { transform: scale(1.04); }
+  .tsunami-empty {
+    text-align: center;
+    padding: 20px;
+    color: #475569;
+    font-size: 13px;
+  }
+
+  /* IMAGE LIGHTBOX */
+  .lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox-img-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    width: 90vw;
+    height: 90vh;
+  }
+  .lightbox img {
+    max-width: 90vw;
+    max-height: 90vh;
+    border-radius: 8px;
+    transform-origin: center center;
+    transition: transform 0.1s ease;
+    cursor: default;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  .lightbox-close {
+    position: absolute;
+    top: 16px; right: 20px;
+    font-size: 28px;
+    color: #e2e8f0;
+    cursor: pointer;
+    line-height: 1;
+    z-index: 10001;
+  }
+  .lightbox-hint {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: #64748b;
+    pointer-events: none;
+  }
+
+  /* Popup dark */
+  .leaflet-popup-content-wrapper {
+    background: #1e2330 !important;
+    border: 1px solid #3d4a63 !important;
+    color: #e2e8f0 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+    font-size: 13px !important;
+  }
+  .leaflet-popup-tip { background: #1e2330 !important; }
+  .leaflet-popup-content { margin: 12px 14px !important; line-height: 1.6 !important; }
+  .popup-mag { font-size: 18px; font-weight: 800; color: #ef4444; }
+  .popup-area { font-weight: 600; color: #f1f5f9; margin: 2px 0; }
+  .popup-detail { color: #94a3b8; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>InaTEWS · BMKG</h1>
+    <p>Indonesia Tsunami Early Warning System</p>
+  </header>
+
+  <!-- 1. GEMPA TERBARU -->
+  <div class="section">
+    <h2>Gempa Terbaru</h2>
+    <div id="autogempa"><div class="loading">Memuat data...</div></div>
+  </div>
+
+  <!-- 2. GEMPA TERKINI M≥5 -->
+  <div class="section">
+    <h2>Gempa Terkini (M ≥ 5.0)</h2>
+    <div id="gempaterkini"><div class="loading">Memuat data...</div></div>
+  </div>
+
+  <!-- 3. TSUNAMI -->
+  <div class="section">
+    <h2>Peringatan Dini Tsunami</h2>
+    <div id="tsunami"><div class="loading">Memuat data...</div></div>
+  </div>
+
+  <!-- 4. GEMPA DIRASAKAN -->
+  <div class="section">
+    <h2>Gempa Dirasakan</h2>
+    <div id="gempadirasakan"><div class="loading">Memuat data...</div></div>
+  </div>
+
+  <!-- 4. GEMPA REALTIME -->
+  <div class="section">
+    <h2>Gempa Realtime</h2>
+    <div id="live30"><div class="loading">Memuat data...</div></div>
+  </div>
+
+  <!-- 5. PETA -->
+  <div class="section">
+    <h2>Peta Gempa &amp; Sesar Aktif</h2>
+    <div id="map"></div>
+    <div class="map-legend">
+      <span><span class="legend-line"></span> Sesar Aktif</span>
+      <span><span class="legend-dot"></span> Episenter Gempa</span>
+    </div>
+  </div>
+
+  <footer>Data realtime dari https://inatews.bmkg.go.id/</footer>
+</div>
+
+<div id="toast" class="toast"></div>
+<div id="lightbox" class="lightbox">
+  <span class="lightbox-close" id="lightbox-close">&times;</span>
+  <div class="lightbox-img-wrap">
+    <img id="lightbox-img" src="" alt="">
+  </div>
+  <div class="lightbox-hint"></div>
+</div>
+
+<script>
+  /* ===================== GLOBAL STORE ===================== */
+  const BASE   = "https://data.bmkg.go.id/DataMKG/TEWS/";
+  const PROXY  = "https://api.allorigins.win/raw?url=";
+  const store  = { autogempa: null, terkini: [], dirasakan: [], live30: [] };
+
+  /* ===================== HELPERS ===================== */
+  const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const DIR_MAP = {
+    "Barat Daya":"Southwest","Barat Laut":"Northwest",
+    "Timur Laut":"Northeast","Tenggara":"Southeast",
+    "Selatan":"South","Utara":"North","Timur":"East","Barat":"West"
+  };
+
+  /* ===================== LIGHTBOX WITH ZOOM ===================== */
+  (function() {
+    let scale = 1, minScale = 1, maxScale = 5;
+    let lastDist = null;
+    const lb  = document.getElementById("lightbox");
+    const img = document.getElementById("lightbox-img");
+    const closeBtn = document.getElementById("lightbox-close");
+
+    function resetZoom() { scale = 1; img.style.transform = `scale(1)`; }
+    function closeLb() { lb.classList.remove("open"); resetZoom(); }
+
+    closeBtn.addEventListener("click", closeLb);
+    // Tidak ada close saat klik luar — hanya X button
+
+    // Mouse scroll zoom
+    img.addEventListener("wheel", e => {
+      e.preventDefault();
+      scale += e.deltaY < 0 ? 0.15 : -0.15;
+      scale = Math.min(Math.max(scale, minScale), maxScale);
+      img.style.transform = `scale(${scale})`;
+    }, { passive: false });
+
+    // Pinch zoom (touch)
+    lb.addEventListener("touchmove", e => {
+      if (e.touches.length !== 2) return;
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (lastDist !== null) {
+        scale *= dist / lastDist;
+        scale = Math.min(Math.max(scale, minScale), maxScale);
+        img.style.transform = `scale(${scale})`;
+      }
+      lastDist = dist;
+    }, { passive: false });
+
+    lb.addEventListener("touchend", () => { lastDist = null; });
+
+    // Double-click reset
+    img.addEventListener("dblclick", resetZoom);
+
+    window.__openLightbox = src => {
+      img.src = src;
+      resetZoom();
+      lb.classList.add("open");
+    };
+  })();
+
+  function showToast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 1800);
+  }
+
+  function copyText(text) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast("Disalin ke clipboard!"))
+      .catch(() => showToast("Gagal menyalin"));
+  }
+
+  function translateWilayah(w) {
+    if (!w) return "-";
+    const dirs = Object.keys(DIR_MAP).sort((a,b) => b.length - a.length);
+    const rx = new RegExp(`(\\d+\\s*km)\\s+(${dirs.join("|")})\\s+(.+)`, "i");
+    const m = w.match(rx);
+    if (m) {
+      const dirKey = Object.keys(DIR_MAP).find(k => k.toLowerCase() === m[2].toLowerCase());
+      return `${m[1]} ${DIR_MAP[dirKey] || m[2]} of ${m[3].trim().toUpperCase()}`;
+    }
+    return w.toUpperCase();
+  }
+
+  // Handle format tanggal BMKG: "13/06/2026", "2026-06-13", "13 Jun 2026", dll
+  function fmtBMKG(tanggal, jam) {
+    if (!tanggal) return `${tanggal||""} ${jam||""}`.trim();
+    let dd, mm, yyyy;
+
+    // Format: "13/06/2026" atau "2026/06/13"
+    const slashM = tanggal.match(/^(\d{1,4})\/(\d{1,2})\/(\d{2,4})$/);
+    if (slashM) {
+      if (slashM[1].length === 4) { [,yyyy,mm,dd] = slashM; }
+      else                        { [,dd,mm,yyyy] = slashM; }
+      const mon = MONTHS_SHORT[parseInt(mm,10)-1] || mm;
+      const yy  = String(yyyy).slice(-2);
+      const time = (jam||"").replace(/\s*WIB/i,"").trim();
+      return `${dd}-${mon}-${yy} ${time} WIB`;
+    }
+
+    // Format: "13 Jun 2026" atau "13 Jun 26"
+    const spaceM = tanggal.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{2,4})$/);
+    if (spaceM) {
+      [,dd,,yyyy] = spaceM;
+      const yy = String(yyyy).slice(-2);
+      const mon = spaceM[2].slice(0,3);
+      const time = (jam||"").replace(/\s*WIB/i,"").trim();
+      return `${String(dd).padStart(2,"0")}-${mon}-${yy} ${time} WIB`;
+    }
+
+    // Format: "2026-06-13" atau "13-06-2026"
+    const dashM = tanggal.match(/^(\d{1,4})-(\d{1,2})-(\d{2,4})$/);
+    if (dashM) {
+      if (dashM[1].length === 4) { [,yyyy,mm,dd] = dashM; }
+      else                       { [,dd,mm,yyyy] = dashM; }
+      const mon = MONTHS_SHORT[parseInt(mm,10)-1] || mm;
+      const yy  = String(yyyy).slice(-2);
+      const time = (jam||"").replace(/\s*WIB/i,"").trim();
+      return `${dd}-${mon}-${yy} ${time} WIB`;
+    }
+
+    // Fallback
+    const time = (jam||"").replace(/\s*WIB/i,"").trim();
+    return `${tanggal} ${time} WIB`;
+  }
+
+  // "2026/06/13 14:06:31.436" → "13-06-2026 14:06:31UTC"
+  function fmtUTC(waktu) {
+    const m = (waktu||"").match(/(\d{4})\/(\d{2})\/(\d{2})\D+(\d{2}):(\d{2}):(\d{2})/);
+    if (!m) return waktu;
+    const [,y,mo,d,hh,mi,ss] = m;
+    return `${d}-${mo}-${y} ${hh}:${mi}:${ss} UTC`;
+  }
+
+  /* ===================== FORMAT COPY ===================== */
+
+  // Tabel 1 (ID) & Tabel 3 (EN)
+  function buildFormatLok(g, lang) {
+    const date  = fmtBMKG(g.Tanggal, g.Jam);
+    const lok   = `${(g.Lintang||"").trim()}, ${(g.Bujur||"").trim()}`;
+    const area  = lang === "en" ? translateWilayah(g.Wilayah) : g.Wilayah;
+    const depth = (g.Kedalaman||"").replace(/\s*km/i,"").trim();
+    const dLbl  = lang === "en" ? "Depth" : "Kedlmn";
+    const lokLabel = lang === "en" ? "Loc" : "Lok";
+    let out = `#Gempa Mag:${g.Magnitude}, ${date}, ${lokLabel}:${lok} (${area}), ${dLbl}:${depth} Km`;
+    if (g.Dirasakan) {
+      const felt = lang === "en" ? "Felt (MMI):" : "Dirasakan (MMI):";
+      out += `, ${felt} ${g.Dirasakan}`;
+    }
+    out += ` #BMKG`;
+    return out;
+  }
+
+  // Tabel 2 (EN, format lama)
+  function buildFormatEN(g) {
+    const date  = fmtBMKG(g.Tanggal, g.Jam);
+    const loc   = translateWilayah(g.Wilayah);
+    const depth = (g.Kedalaman||"").replace(/\s*km/i,"").trim();
+    return `#Gempa Mag:${g.Magnitude}, ${date}, Loc:(${loc}), Depth:${depth} Km #BMKG`;
+  }
+
+  // Tabel 4 (Live XML)
+  function buildFormatLive(g) {
+    const date  = fmtUTC(g.waktu);
+    const lat   = parseFloat(g.lintang);
+    const lon   = parseFloat(g.bujur);
+    const latS  = `${Math.abs(lat).toFixed(2)}${lat < 0 ? "S":"N"}`;
+    const lonS  = `${Math.abs(lon).toFixed(2)}${lon < 0 ? "W":"E"}`;
+    return `#Gempa Mag:${g.mag}, ${date}, Loc:${latS}, ${lonS} (${g.area}), Depth:${g.dalam} Km #BMKG\nDisclaimer: This information prioritizes speed, so the data processing results are not yet stable and may change as data becomes complete`;
+  }
+
+  /* copy by store index — handled via attachCopyHandlers */
+
+  /* ===================== FETCH ===================== */
+  async function fetchJSON(file) {
+    const url = BASE + file;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error();
+      return r.json();
+    } catch {
+      const r = await fetch(PROXY + encodeURIComponent(url));
+      if (!r.ok) throw new Error("proxy gagal");
+      return r.json();
+    }
+  }
+
+  /* ===================== RENDER HELPERS ===================== */
+
+  // Attach copy handlers setelah render (hindari scope issue inline onclick)
+  function attachCopyHandlers(container) {
+    container.querySelectorAll("[data-copy-src]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const src = btn.dataset.copySrc;
+        const idx = parseInt(btn.dataset.copyIdx || "0", 10);
+        let g, text;
+        if (src === "auto")       { g = store.autogempa;    text = buildFormatLok(g, "id"); }
+        else if (src === "terkini")   { g = store.terkini[idx];  text = buildFormatEN(g); }
+        else if (src === "dirasakan") { g = store.dirasakan[idx];text = buildFormatLok(g,"en"); }
+        else if (src === "live30")    { g = store.live30[idx];   text = buildFormatLive(g); }
+        if (!g) return showToast("Data tidak ditemukan");
+        copyText(text);
+      });
+    });
+  }
+
+  // Render tabel dengan 5 highlight row + sisa kolaps
+  function renderTableSection(elId, rows, buildHighlight) {
+    const el = document.getElementById(elId);
+    if (!rows || rows.length === 0) {
+      el.innerHTML = `<div class="loading">Tidak ada data.</div>`; return;
+    }
+    const top  = rows.slice(0, 5);
+    const rest = rows.slice(5);
+    const topRows = top.map((r,i) => buildHighlight(r, i, i === 0 ? false : "plain-top")).join("");
+
+    // Wrap top 5 dalam satu tabel
+    const firstHeader = buildHighlight(top[0], 0, "header-only");
+    const topBody = top.map((r,i) => buildHighlight(r, i, "row-only")).join("");
+
+    let html = `
+      <div class="table-wrap"><table>
+        ${firstHeader}
+        <tbody>
+          ${topBody}
+        </tbody>
+      </table></div>`;
+
+    if (rest.length > 0) {
+      const restRows = rest.map((r,i) => buildHighlight(r, i+5, "row-only")).join("");
+      html += `
+        <div id="${elId}-more" style="display:none">
+          <div class="table-wrap"><table><tbody>${restRows}</tbody></table></div>
+        </div>
+        <button class="show-more-btn" data-target="${elId}">
+          Tampilkan ${rest.length} gempa lainnya ▾
+        </button>`;
+    }
+    el.innerHTML = html;
+
+    el.querySelectorAll(".show-more-btn[data-target]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const more = document.getElementById(btn.dataset.target + "-more");
+        const open = more.style.display === "block";
+        more.style.display = open ? "none" : "block";
+        const n = btn.textContent.match(/\d+/)?.[0] || "";
+        btn.textContent = open ? `Tampilkan ${n} gempa lainnya ▾` : "Sembunyikan ▴";
+      });
+    });
+
+    attachCopyHandlers(el);
+  }
+
+  /* ===================== SECTION LOADERS ===================== */
+
+  // 1. GEMPA TERBARU
+  async function loadAutoGempa() {
+    const el = document.getElementById("autogempa");
+    try {
+      const data = await fetchJSON("autogempa.json");
+      const g = data.Infogempa.gempa;
+      store.autogempa = g;
+      el.innerHTML = `
+        <div class="highlight-card">
+          <div class="card-flex">
+            <img src="${BASE}${g.Shakemap}" alt="Shakemap" onerror="this.style.display='none'">
+            <div class="card-info">
+              <div class="mag">M ${g.Magnitude}</div>
+              <p><strong>Waktu</strong><span>${g.Tanggal} ${g.Jam}</span></p>
+              <p><strong>Lokasi</strong><span>${g.Wilayah}</span></p>
+              <p><strong>Koordinat</strong><span>${g.Lintang}, ${g.Bujur}</span></p>
+              <p><strong>Kedalaman</strong><span>${g.Kedalaman}</span></p>
+              <p><strong>Dirasakan</strong><span>${g.Dirasakan || "-"}</span></p>
+              <p><strong>Potensi</strong><span>${g.Potensi}</span></p>
+            </div>
+          </div>
+          <button class="copy-btn lg" data-copy-src="auto" style="display:block;margin:10px auto 0">Copy</button>
+        </div>`;
+      attachCopyHandlers(el);
+    } catch(e) {
+      el.innerHTML = `<div class="error">Gagal memuat data: ${e.message}</div>`;
+    }
+  }
+
+  // 2. GEMPA TERKINI M≥5
+  async function loadGempaTerkini() {
+    const el = document.getElementById("gempaterkini");
+    try {
+      const data = await fetchJSON("gempaterkini.json");
+      const list = data.Infogempa.gempa;
+      store.terkini = list;
+
+      function buildRow(g, i, mode) {
+        const isLatest = i === 0;
+        const cells = `
+          <td>${g.Tanggal}<br><span style="color:#64748b">${g.Jam}</span></td>
+          <td><span class="mag-badge">M ${g.Magnitude}</span></td>
+          <td style="white-space:nowrap">${g.Kedalaman}</td>
+          <td>${g.Wilayah}</td>
+          <td><button class="copy-btn" data-copy-src="terkini" data-copy-idx="${i}">Copy</button></td>`;
+        const header = `<thead><tr><th>Waktu</th><th>Mag</th><th>Kedalaman</th><th>Wilayah</th><th></th></tr></thead>`;
+        if (mode === "header-only") return header;
+        if (mode === "row-only") return `<tr${isLatest ? ' class="latest-row"':''}>${cells}</tr>`;
+        // legacy full
+        return `<div class="table-wrap"><table>${header}<tbody><tr class="latest-row">${cells}</tr></tbody></table></div>`;
+      }
+      renderTableSection("gempaterkini", list, buildRow);
+    } catch(e) {
+      el.innerHTML = `<div class="error">Gagal memuat: ${e.message}</div>`;
+    }
+  }
+
+  // 3. GEMPA DIRASAKAN
+  async function loadGempaDirasakan() {
+    const el = document.getElementById("gempadirasakan");
+    try {
+      const data = await fetchJSON("gempadirasakan.json");
+      const list = data.Infogempa.gempa;
+      store.dirasakan = list;
+
+      function buildRow(g, i, mode) {
+        const isLatest = i === 0;
+        const cells = `
+          <td>${g.Tanggal}<br><span style="color:#64748b">${g.Jam}</span></td>
+          <td><span class="mag-badge">M ${g.Magnitude}</span></td>
+          <td style="white-space:nowrap">${g.Kedalaman}</td>
+          <td>${g.Wilayah}</td>
+          <td style="color:#94a3b8;font-size:12px">${g.Dirasakan || "-"}</td>
+          <td><button class="copy-btn" data-copy-src="dirasakan" data-copy-idx="${i}">Copy</button></td>`;
+        const header = `<thead><tr><th>Waktu</th><th>Mag</th><th>Kedalaman</th><th>Wilayah</th><th>Dirasakan</th><th></th></tr></thead>`;
+        if (mode === "header-only") return header;
+        if (mode === "row-only") return `<tr${isLatest ? ' class="latest-row"':''}>${cells}</tr>`;
+        return `<div class="table-wrap"><table>${header}<tbody><tr class="latest-row">${cells}</tr></tbody></table></div>`;
+      }
+      renderTableSection("gempadirasakan", list, buildRow);
+    } catch(e) {
+      el.innerHTML = `<div class="error">Gagal memuat: ${e.message}</div>`;
+    }
+  }
+
+  // 4. LIVE 30 EVENT
+  async function loadLive30() {
+    const el = document.getElementById("live30");
+    const url = "https://bmkg-content-inatews.storage.googleapis.com/live30event.xml";
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      const xml  = new DOMParser().parseFromString(text, "application/xml");
+      if (xml.querySelector("parsererror")) throw new Error("gagal parse XML");
+
+      const getVal = (node, tag) => { const t = node.querySelector(tag); return t ? t.textContent.trim() : "-"; };
+      const evts = Array.from(xml.querySelectorAll("gempa")).map(g => ({
+        mag: getVal(g,"mag"), waktu: getVal(g,"waktu"),
+        dalam: getVal(g,"dalam"), area: getVal(g,"area"),
+        lintang: getVal(g,"lintang"), bujur: getVal(g,"bujur"),
+        status: getVal(g,"status")
+      }));
+      store.live30 = evts;
+
+      function buildRow(g, i, mode) {
+        const isLatest = i === 0;
+        const cells = `
+          <td style="white-space:nowrap;font-size:12px">${fmtUTC(g.waktu)}</td>
+          <td><span class="mag-badge">M ${g.mag}</span></td>
+          <td style="white-space:nowrap">${g.dalam} km</td>
+          <td>${g.area}<br><span style="color:#64748b;font-size:11px">${g.lintang}, ${g.bujur}</span></td>
+          <td><span class="status-chip">${g.status}</span></td>
+          <td><button class="copy-btn" data-copy-src="live30" data-copy-idx="${i}">Copy</button></td>`;
+        const header = `<thead><tr><th>Waktu (UTC+7)</th><th>Mag</th><th>Kedalaman</th><th>Lokasi</th><th>Status</th><th></th></tr></thead>`;
+        if (mode === "header-only") return header;
+        if (mode === "row-only") return `<tr${isLatest ? ' class="latest-row"':''}>${cells}</tr>`;
+        return `<div class="table-wrap"><table>${header}<tbody><tr class="latest-row">${cells}</tr></tbody></table></div>`;
+      }
+      renderTableSection("live30", evts, buildRow);
+    } catch(e) {
+      el.innerHTML = `<div class="error">Gagal memuat: ${e.message}</div>`;
+    }
+  }
+
+  /* ===================== MAP ===================== */
+  let map = null;
+
+  function magColor(mag) {
+    const m = parseFloat(mag);
+    if (m >= 6)   return "#dc2626";
+    if (m >= 5)   return "#f97316";
+    if (m >= 4)   return "#eab308";
+    if (m >= 3)   return "#22c55e";
+    return "#38bdf8";
+  }
+
+  function magRadius(mag) {
+    const m = parseFloat(mag);
+    if (m >= 6) return 14;
+    if (m >= 5) return 11;
+    if (m >= 4) return 8;
+    if (m >= 3) return 6;
+    return 5;
+  }
+
+  async function initMap(earthquakes) {
+    // Load Leaflet JS dynamically
+    await new Promise((res, rej) => {
+      if (window.L) return res();
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+
+    if (map) { map.remove(); map = null; }
+
+    map = L.map("map", {
+      center: [-2.5, 118],
+      zoom: 4,
+      zoomControl: true,
+    });
+
+    // Dark tile layer (CartoDB Dark Matter)
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+      subdomains: "abcd",
+      maxZoom: 18
+    }).addTo(map);
+
+    // Load fault lines GeoJSON
+    try {
+      const faultRes = await fetch("https://bmkg-content-inatews.storage.googleapis.com/indo_faults_lines.geojson");
+      if (faultRes.ok) {
+        const faultData = await faultRes.json();
+        L.geoJSON(faultData, {
+          style: { color: "#f97316", weight: 1.2, opacity: 0.6 }
+        }).addTo(map);
+      }
+    } catch(e) { console.warn("Fault lines tidak bisa dimuat:", e); }
+
+    // Plot earthquake markers
+    earthquakes.forEach(g => {
+      const lat = parseFloat(g.lintang);
+      const lon = parseFloat(g.bujur);
+      if (isNaN(lat) || isNaN(lon)) return;
+
+      const color = magColor(g.mag);
+      const r     = magRadius(g.mag);
+
+      const circle = L.circleMarker([lat, lon], {
+        radius: r,
+        fillColor: color,
+        color: "#fff",
+        weight: 1,
+        opacity: 0.9,
+        fillOpacity: 0.85
+      }).addTo(map);
+
+      circle.bindPopup(`
+        <div class="popup-mag">M ${g.mag}</div>
+        <div class="popup-area">${g.area}</div>
+        <div class="popup-detail">
+          ${fmtUTC(g.waktu)}<br>
+          Kedalaman: ${g.dalam} km<br>
+          ${g.lintang}, ${g.bujur}<br>
+          Status: ${g.status}
+        </div>
+      `);
+    });
+  }
+
+  // 3. TSUNAMI
+  async function loadTsunami() {
+    const el = document.getElementById("tsunami");
+    const TEWS = "https://bmkg-content-inatews.storage.googleapis.com/";
+    const url  = TEWS + "last30tsunamievent.xml";
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      const xml  = new DOMParser().parseFromString(text, "application/xml");
+      if (xml.querySelector("parsererror")) throw new Error("gagal parse XML");
+
+      const getT = (node, tag) => { const t = node.querySelector(tag); return t ? t.textContent.trim() : ""; };
+
+      const alerts = Array.from(xml.querySelectorAll("alert"));
+      if (alerts.length === 0) {
+        el.innerHTML = `<div class="tsunami-empty">✅ Tidak ada riwayat peringatan tsunami.</div>`; return;
+      }
+
+      const cards = alerts.map(a => {
+        const info      = a.querySelector("info");
+        if (!info) return "";
+        const subject   = getT(info, "subject");
+        const headline  = getT(info, "headline");
+        const date      = getT(info, "date");
+        const time      = getT(info, "time");
+        const mag       = getT(info, "magnitude");
+        const depth     = getT(info, "depth");
+        const area      = getT(info, "area");
+        const lat       = getT(info, "latitude");
+        const lon       = getT(info, "longitude");
+        const potential = getT(info, "potential");
+        const eventid   = getT(info, "eventid");
+        const timesent  = getT(info, "timesent");
+
+        const isEnded   = headline.toLowerCase().includes("berakhir") || subject.toLowerCase().includes("pd-4");
+        const badgeCls  = isEnded ? "ended" : "active";
+        const badgeTxt  = isEnded ? "Berakhir" : "⚠ Aktif";
+        const cardCls   = isEnded ? "" : " warning";
+
+        // Maps
+        const mapBase = TEWS;
+        const maps = [];
+        ["shakemap","wzmap","ttmap","sshmap"].forEach(tag => {
+          const val = getT(info, tag);
+          if (val) maps.push({ tag, src: mapBase + val, label: { shakemap:"Shakemap", wzmap:"Warning Zone", ttmap:"Travel Time", sshmap:"Sea Surface" }[tag] });
+        });
+
+        const mapsHtml = maps.length ? `
+          <div class="tsunami-maps">
+            ${maps.map(m => `<img src="${m.src}" alt="${m.label}" title="${m.label}" onclick="__openLightbox('${m.src}')" onerror="this.style.display='none'">`).join("")}
+          </div>` : "";
+
+        return `
+          <div class="tsunami-card${cardCls}">
+            <div><span class="tsunami-badge ${badgeCls}">${badgeTxt}</span></div>
+            <div class="tsunami-desc" style="color:#e2e8f0;font-size:13px;margin-bottom:10px">${headline}</div>
+            <div class="tsunami-meta">
+              <span>📅 ${date} ${time}</span>
+              <span>📡 M ${mag} · ${depth}</span>
+              <span>📍 ${lat}, ${lon} · ${area}</span>
+              <span>🕐 Dikirim: ${timesent}</span>
+            </div>
+            ${mapsHtml}
+          </div>`;
+      }).join("");
+
+      el.innerHTML = cards || `<div class="tsunami-empty">Tidak ada data tsunami.</div>`;
+    } catch(e) {
+      el.innerHTML = `<div class="error">Gagal memuat data: ${e.message}</div>`;
+    }
+  }
+
+  /* ===================== INIT ===================== */
+  loadAutoGempa();
+  loadGempaTerkini();
+  loadTsunami();
+  loadGempaDirasakan();
+  loadLive30().then(() => {
+    if (store.live30.length > 0) initMap(store.live30);
+  });
+</script>
+</body>
+</html>
