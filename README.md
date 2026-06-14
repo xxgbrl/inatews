@@ -1,3 +1,1 @@
-https://inatews.pages.dev/
-https://inatews.netlify.app/
-https://xxgbrl.github.io/inatews/
+https://inatews.pages.dev/ · https://inatews.netlify.app/ · https://xxgbrl.github.io/inatews/
