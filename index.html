@@ -108,6 +108,21 @@
 
   /* TABLE */
   .table-wrap { overflow-x: auto; }
+  .table-scroll {
+    max-height: 340px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #3d4a63 #1e2330;
+  }
+  .table-scroll::-webkit-scrollbar { width: 6px; }
+  .table-scroll::-webkit-scrollbar-track { background: #1e2330; }
+  .table-scroll::-webkit-scrollbar-thumb { background: #3d4a63; border-radius: 3px; }
+  .table-scroll thead th {
+    position: sticky;
+    top: 0;
+    background: #1e2330;
+    z-index: 1;
+  }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th {
     padding: 8px 10px;
@@ -174,21 +189,6 @@
     font-size: 13px;
     margin-top: 10px;
   }
-
-  /* SHOW MORE BUTTON */
-  .show-more-btn {
-    width: 100%;
-    margin-top: 10px;
-    padding: 9px;
-    background: transparent;
-    color: #64748b;
-    border: 1px dashed #2d3448;
-    border-radius: 8px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .show-more-btn:hover { border-color: #3d4a63; color: #94a3b8; background: #1a2030; }
 
   /* LOADING / ERROR */
   .loading, .error {
@@ -293,12 +293,6 @@
   }
   .tsunami-badge.ended  { background: #1e3a2f; color: #6ee7b7; }
   .tsunami-badge.active { background: #7f1d1d; color: #fca5a5; }
-  .tsunami-subject {
-    font-size: 14px;
-    font-weight: 700;
-    color: #f1f5f9;
-    margin-bottom: 6px;
-  }
   .tsunami-desc {
     font-size: 12px;
     color: #94a3b8;
@@ -420,16 +414,16 @@
     <div id="gempaterkini"><div class="loading">Memuat data...</div></div>
   </div>
 
-  <!-- 3. TSUNAMI -->
-  <div class="section">
-    <h2>Peringatan Dini Tsunami</h2>
-    <div id="tsunami"><div class="loading">Memuat data...</div></div>
-  </div>
-
-  <!-- 4. GEMPA DIRASAKAN -->
+  <!-- 3. GEMPA DIRASAKAN -->
   <div class="section">
     <h2>Gempa Dirasakan</h2>
     <div id="gempadirasakan"><div class="loading">Memuat data...</div></div>
+  </div>
+
+  <!-- 4. TSUNAMI -->
+  <div class="section">
+    <h2>Peringatan Dini Tsunami</h2>
+    <div id="tsunami"><div class="loading">Memuat data...</div></div>
   </div>
 
   <!-- 4. GEMPA REALTIME -->
@@ -670,50 +664,21 @@
     });
   }
 
-  // Render tabel dengan 5 highlight row + sisa kolaps
+  // Render tabel scrollable — 5 teratas highlight, sisanya scroll
   function renderTableSection(elId, rows, buildHighlight) {
     const el = document.getElementById(elId);
     if (!rows || rows.length === 0) {
       el.innerHTML = `<div class="loading">Tidak ada data.</div>`; return;
     }
-    const top  = rows.slice(0, 5);
-    const rest = rows.slice(5);
-    const topRows = top.map((r,i) => buildHighlight(r, i, i === 0 ? false : "plain-top")).join("");
-
-    // Wrap top 5 dalam satu tabel
-    const firstHeader = buildHighlight(top[0], 0, "header-only");
-    const topBody = top.map((r,i) => buildHighlight(r, i, "row-only")).join("");
-
-    let html = `
-      <div class="table-wrap"><table>
-        ${firstHeader}
-        <tbody>
-          ${topBody}
-        </tbody>
-      </table></div>`;
-
-    if (rest.length > 0) {
-      const restRows = rest.map((r,i) => buildHighlight(r, i+5, "row-only")).join("");
-      html += `
-        <div id="${elId}-more" style="display:none">
-          <div class="table-wrap"><table><tbody>${restRows}</tbody></table></div>
-        </div>
-        <button class="show-more-btn" data-target="${elId}">
-          Tampilkan ${rest.length} gempa lainnya ▾
-        </button>`;
-    }
-    el.innerHTML = html;
-
-    el.querySelectorAll(".show-more-btn[data-target]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const more = document.getElementById(btn.dataset.target + "-more");
-        const open = more.style.display === "block";
-        more.style.display = open ? "none" : "block";
-        const n = btn.textContent.match(/\d+/)?.[0] || "";
-        btn.textContent = open ? `Tampilkan ${n} gempa lainnya ▾` : "Sembunyikan ▴";
-      });
-    });
-
+    const header  = buildHighlight(rows[0], 0, "header-only");
+    const allRows = rows.map((r, i) => buildHighlight(r, i, "row-only")).join("");
+    el.innerHTML = `
+      <div class="table-wrap table-scroll">
+        <table>
+          ${header}
+          <tbody>${allRows}</tbody>
+        </table>
+      </div>`;
     attachCopyHandlers(el);
   }
 
@@ -982,7 +947,7 @@
 
         const mapsHtml = maps.length ? `
           <div class="tsunami-maps">
-            ${maps.map(m => `<img src="${m.src}" alt="${m.label}" title="${m.label}" onclick="__openLightbox('${m.src}')" onerror="this.style.display='none'">`).join("")}
+            ${maps.map(m => `<img src="${m.src}" alt="${m.label}" title="${m.label}" data-lightbox="${m.src}" onerror="this.style.display='none'">`).join("")}
           </div>` : "";
 
         return `
@@ -1006,10 +971,15 @@
   }
 
   /* ===================== INIT ===================== */
+  // Event delegation for tsunami map lightbox
+  document.addEventListener("click", e => {
+    const src = e.target.dataset?.lightbox;
+    if (src) window.__openLightbox(src);
+  });
   loadAutoGempa();
   loadGempaTerkini();
-  loadTsunami();
   loadGempaDirasakan();
+  loadTsunami();
   loadLive30().then(() => {
     if (store.live30.length > 0) initMap(store.live30);
   });
