@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>InaTEWS · BMKG</title>
+<meta name="description" content="Informasi gempa bumi dan peringatan dini tsunami Indonesia secara realtime dari BMKG dan InaTEWS. Data gempa terkini, gempa dirasakan, dan peta episenter.">
+<meta name="keywords" content="gempa bumi, gempa hari ini, tsunami, BMKG, InaTEWS, gempa Indonesia, peringatan dini tsunami, info gempa realtime">
+<meta name="author" content="InaTEWS · BMKG">
+<meta name="robots" content="index, follow">
+<meta property="og:title" content="InaTEWS · BMKG — Info Gempa Realtime">
+<meta property="og:description" content="Informasi gempa bumi dan peringatan dini tsunami Indonesia secara realtime dari BMKG dan InaTEWS.">
+<meta property="og:type" content="website">
+<meta name="google-site-verification" content="3_Fq9IDHc9sZGf_B4_UNEVAZLjT3ac4nlL5w4pBxdkw"/>
+<meta name="theme-color" content="#0f1117">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <style>
@@ -594,18 +603,15 @@
 
   /* ===================== FORMAT COPY ===================== */
 
-  // Tabel 1 (ID) & Tabel 3 (EN)
+  // Tabel 1 & 3 (ID)
   function buildFormatLok(g, lang) {
     const date  = fmtBMKG(g.Tanggal, g.Jam);
     const lok   = `${(g.Lintang||"").trim()}, ${(g.Bujur||"").trim()}`;
-    const area  = lang === "en" ? translateWilayah(g.Wilayah) : g.Wilayah;
+    const area  = g.Wilayah;
     const depth = (g.Kedalaman||"").replace(/\s*km/i,"").trim();
-    const dLbl  = lang === "en" ? "Depth" : "Kedlmn";
-    const lokLabel = lang === "en" ? "Loc" : "Lok";
-    let out = `#Gempa Mag:${g.Magnitude}, ${date}, ${lokLabel}:${lok} (${area}), ${dLbl}:${depth} Km`;
+    let out = `#Gempa Mag:${g.Magnitude}, ${date}, Lok:${lok} (${area}), Kedlmn:${depth} Km`;
     if (g.Dirasakan) {
-      const felt = lang === "en" ? "Felt (MMI):" : "Dirasakan (MMI):";
-      out += `, ${felt} ${g.Dirasakan}`;
+      out += `, Dirasakan (MMI): ${g.Dirasakan}`;
     }
     out += ` #BMKG`;
     return out;
@@ -705,7 +711,7 @@
               <p><strong>Potensi</strong><span>${g.Potensi}</span></p>
             </div>
           </div>
-          <button class="copy-btn lg" data-copy-src="auto" style="display:block;margin:10px auto 0">Copy</button>
+          <button class="copy-btn lg" data-copy-src="auto" style="display:block;margin:10px auto 0">Salin</button>
         </div>`;
       attachCopyHandlers(el);
     } catch(e) {
@@ -728,7 +734,7 @@
           <td><span class="mag-badge">M ${g.Magnitude}</span></td>
           <td style="white-space:nowrap">${g.Kedalaman}</td>
           <td>${g.Wilayah}</td>
-          <td><button class="copy-btn" data-copy-src="terkini" data-copy-idx="${i}">Copy</button></td>`;
+          <td><button class="copy-btn" data-copy-src="terkini" data-copy-idx="${i}">Salin</button></td>`;
         const header = `<thead><tr><th>Waktu</th><th>Mag</th><th>Kedalaman</th><th>Wilayah</th><th></th></tr></thead>`;
         if (mode === "header-only") return header;
         if (mode === "row-only") return `<tr${isLatest ? ' class="latest-row"':''}>${cells}</tr>`;
@@ -757,7 +763,7 @@
           <td style="white-space:nowrap">${g.Kedalaman}</td>
           <td>${g.Wilayah}</td>
           <td style="color:#94a3b8;font-size:12px">${g.Dirasakan || "-"}</td>
-          <td><button class="copy-btn" data-copy-src="dirasakan" data-copy-idx="${i}">Copy</button></td>`;
+          <td><button class="copy-btn" data-copy-src="dirasakan" data-copy-idx="${i}">Salin</button></td>`;
         const header = `<thead><tr><th>Waktu</th><th>Mag</th><th>Kedalaman</th><th>Wilayah</th><th>Dirasakan</th><th></th></tr></thead>`;
         if (mode === "header-only") return header;
         if (mode === "row-only") return `<tr${isLatest ? ' class="latest-row"':''}>${cells}</tr>`;
@@ -798,7 +804,7 @@
           <td>${g.area}<br><span style="color:#64748b;font-size:11px">${g.lintang}, ${g.bujur}</span></td>
           <td><span class="status-chip">${g.status}</span></td>
           <td><button class="copy-btn" data-copy-src="live30" data-copy-idx="${i}">Copy</button></td>`;
-        const header = `<thead><tr><th>Waktu (UTC+7)</th><th>Mag</th><th>Kedalaman</th><th>Lokasi</th><th>Status</th><th></th></tr></thead>`;
+        const header = `<thead><tr><th>Time (UTC+7)</th><th>Mag</th><th>Depth</th><th>Location</th><th>Status</th><th></th></tr></thead>`;
         if (mode === "header-only") return header;
         if (mode === "row-only") return `<tr${isLatest ? ' class="latest-row"':''}>${cells}</tr>`;
         return `<div class="table-wrap"><table>${header}<tbody><tr class="latest-row">${cells}</tr></tbody></table></div>`;
@@ -889,7 +895,7 @@
         <div class="popup-area">${g.area}</div>
         <div class="popup-detail">
           ${fmtUTC(g.waktu)}<br>
-          Kedalaman: ${g.dalam} km<br>
+          Depth: ${g.dalam} km<br>
           ${g.lintang}, ${g.bujur}<br>
           Status: ${g.status}
         </div>
