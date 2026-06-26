@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>InaTEWS · BMKG</title>
-<meta name="description" content="Informasi gempa bumi dan peringatan dini tsunami Indonesia secara realtime dari BMKG dan InaTEWS. Data gempa terkini, gempa dirasakan, dan peta episenter.">
+<meta name="description" content="Informasi gempa bumi dan peringatan dini tsunami Indonesia secara realtime dari InaTEWS BMKG. Data gempa terkini, gempa dirasakan, dan peta episenter.">
 <meta name="keywords" content="gempa bumi, gempa hari ini, tsunami, BMKG, InaTEWS, gempa Indonesia, peringatan dini tsunami, info gempa realtime">
 <meta name="author" content="InaTEWS · BMKG">
 <meta name="robots" content="index, follow">
 <meta property="og:title" content="InaTEWS · BMKG — Info Gempa Realtime">
-<meta property="og:description" content="Informasi gempa bumi dan peringatan dini tsunami Indonesia secara realtime dari BMKG dan InaTEWS.">
+<meta property="og:description" content="Informasi gempa bumi dan peringatan dini tsunami Indonesia secara realtime dari InaTEWS BMKG.">
 <meta property="og:type" content="website">
 <meta name="google-site-verification" content="3_Fq9IDHc9sZGf_B4_UNEVAZLjT3ac4nlL5w4pBxdkw"/>
 <meta name="theme-color" content="#0f1117">
@@ -364,10 +364,11 @@
     max-height: 90vh;
     border-radius: 8px;
     transform-origin: center center;
-    transition: transform 0.1s ease;
+    transition: transform 0.05s ease;
     cursor: default;
     user-select: none;
     -webkit-user-drag: none;
+    will-change: transform;
   }
   .lightbox-close {
     position: absolute;
@@ -477,51 +478,115 @@
     "Selatan":"South","Utara":"North","Timur":"East","Barat":"West"
   };
 
-  /* ===================== LIGHTBOX WITH ZOOM ===================== */
+  /* ===================== LIGHTBOX WITH ZOOM + PAN ===================== */
   (function() {
     let scale = 1, minScale = 1, maxScale = 5;
-    let lastDist = null;
-    const lb  = document.getElementById("lightbox");
-    const img = document.getElementById("lightbox-img");
-    const closeBtn = document.getElementById("lightbox-close");
+    let panX = 0, panY = 0;
+    let isDragging = false, dragStartX = 0, dragStartY = 0, panStartX = 0, panStartY = 0;
+    let lastDist = null, lastMidX = 0, lastMidY = 0;
+    let touchPanX = 0, touchPanY = 0;
 
-    function resetZoom() { scale = 1; img.style.transform = `scale(1)`; }
-    function closeLb() { lb.classList.remove("open"); resetZoom(); }
+    const lb      = document.getElementById("lightbox");
+    const wrap    = lb.querySelector(".lightbox-img-wrap");
+    const img     = document.getElementById("lightbox-img");
+    const closeBtn= document.getElementById("lightbox-close");
 
+    function applyTransform() {
+      img.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+    }
+
+    function resetAll() {
+      scale = 1; panX = 0; panY = 0;
+      applyTransform();
+    }
+
+    function closeLb() { lb.classList.remove("open"); resetAll(); }
     closeBtn.addEventListener("click", closeLb);
-    // Tidak ada close saat klik luar — hanya X button
 
-    // Mouse scroll zoom
-    img.addEventListener("wheel", e => {
+    /* ---- MOUSE: scroll to zoom ---- */
+    wrap.addEventListener("wheel", e => {
       e.preventDefault();
-      scale += e.deltaY < 0 ? 0.15 : -0.15;
-      scale = Math.min(Math.max(scale, minScale), maxScale);
-      img.style.transform = `scale(${scale})`;
+      const rect   = img.getBoundingClientRect();
+      const ox     = (e.clientX - rect.left) / scale;
+      const oy     = (e.clientY - rect.top)  / scale;
+      const delta  = e.deltaY < 0 ? 0.15 : -0.15;
+      const newScale = Math.min(Math.max(scale + delta, minScale), maxScale);
+      // adjust pan so zoom centers on cursor
+      panX -= (newScale - scale) * (ox - img.naturalWidth  / 2);
+      panY -= (newScale - scale) * (oy - img.naturalHeight / 2);
+      scale = newScale;
+      if (scale === minScale) { panX = 0; panY = 0; }
+      applyTransform();
     }, { passive: false });
 
-    // Pinch zoom (touch)
+    /* ---- MOUSE: drag to pan ---- */
+    img.addEventListener("mousedown", e => {
+      if (scale <= 1) return;
+      isDragging = true;
+      dragStartX = e.clientX; dragStartY = e.clientY;
+      panStartX  = panX;      panStartY  = panY;
+      img.style.cursor = "grabbing";
+      e.preventDefault();
+    });
+    window.addEventListener("mousemove", e => {
+      if (!isDragging) return;
+      panX = panStartX + (e.clientX - dragStartX);
+      panY = panStartY + (e.clientY - dragStartY);
+      applyTransform();
+    });
+    window.addEventListener("mouseup", () => {
+      if (!isDragging) return;
+      isDragging = false;
+      img.style.cursor = scale > 1 ? "grab" : "default";
+    });
+
+    /* ---- TOUCH: pinch zoom + 1-finger pan ---- */
     lb.addEventListener("touchmove", e => {
-      if (e.touches.length !== 2) return;
       e.preventDefault();
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.sqrt(dx*dx + dy*dy);
-      if (lastDist !== null) {
-        scale *= dist / lastDist;
-        scale = Math.min(Math.max(scale, minScale), maxScale);
-        img.style.transform = `scale(${scale})`;
+
+      if (e.touches.length === 2) {
+        // Pinch zoom
+        const dx   = e.touches[0].clientX - e.touches[1].clientX;
+        const dy   = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+        if (lastDist !== null) {
+          const newScale = Math.min(Math.max(scale * (dist / lastDist), minScale), maxScale);
+          panX += (midX - lastMidX);
+          panY += (midY - lastMidY);
+          scale = newScale;
+          if (scale === minScale) { panX = 0; panY = 0; }
+          applyTransform();
+        }
+        lastDist = dist; lastMidX = midX; lastMidY = midY;
+
+      } else if (e.touches.length === 1 && scale > 1) {
+        // 1-finger pan
+        if (touchPanX === 0 && touchPanY === 0) {
+          touchPanX = e.touches[0].clientX;
+          touchPanY = e.touches[0].clientY;
+        }
+        panX += e.touches[0].clientX - touchPanX;
+        panY += e.touches[0].clientY - touchPanY;
+        touchPanX = e.touches[0].clientX;
+        touchPanY = e.touches[0].clientY;
+        applyTransform();
       }
-      lastDist = dist;
     }, { passive: false });
 
-    lb.addEventListener("touchend", () => { lastDist = null; });
+    lb.addEventListener("touchend", e => {
+      lastDist = null; lastMidX = 0; lastMidY = 0;
+      touchPanX = 0; touchPanY = 0;
+    });
 
-    // Double-click reset
-    img.addEventListener("dblclick", resetZoom);
+    /* ---- Double-click / double-tap reset ---- */
+    img.addEventListener("dblclick", resetAll);
 
     window.__openLightbox = src => {
       img.src = src;
-      resetZoom();
+      resetAll();
       lb.classList.add("open");
     };
   })();
@@ -700,7 +765,7 @@
       el.innerHTML = `
         <div class="highlight-card">
           <div class="card-flex">
-            <img src="${BASE}${g.Shakemap}" alt="Shakemap" onerror="this.style.display='none'">
+            <img src="${BASE}${g.Shakemap}" alt="Shakemap" data-lightbox="${BASE}${g.Shakemap}" style="cursor:zoom-in" onerror="this.style.display='none'">
             <div class="card-info">
               <div class="mag">M ${g.Magnitude}</div>
               <p><strong>Waktu</strong><span>${g.Tanggal} ${g.Jam}</span></p>
