@@ -14,7 +14,11 @@
 <meta name="google-site-verification" content="3_Fq9IDHc9sZGf_B4_UNEVAZLjT3ac4nlL5w4pBxdkw"/>
 <meta name="theme-color" content="#0f1117">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+
+<!-- 🗺️ LIBRARY PETA VECTOR (MAPLIBRE GL JS) -->
+<link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -378,19 +382,28 @@
     pointer-events: none;
   }
 
-  .leaflet-popup-content-wrapper {
+  /* 🗺️ CSS KHUSUS POPUP MAPLIBRE (DARK MODE) */
+  .maplibregl-popup-content {
     background: #1e2330 !important;
     border: 1px solid #3d4a63 !important;
     color: #e2e8f0 !important;
     border-radius: 8px !important;
     box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
     font-size: 13px !important;
+    padding: 12px 14px !important;
   }
-  .leaflet-popup-tip { background: #1e2330 !important; }
-  .leaflet-popup-content { margin: 12px 14px !important; line-height: 1.6 !important; }
-  .popup-mag { font-size: 18px; font-weight: 800; color: #ef4444; }
-  .popup-area { font-weight: 600; color: #f1f5f9; margin: 2px 0; }
-  .popup-detail { color: #94a3b8; font-size: 12px; }
+  .maplibregl-popup-tip {
+    border-top-color: #1e2330 !important;
+  }
+  .maplibregl-popup-close-button {
+    color: #94a3b8 !important;
+    font-size: 16px !important;
+    padding: 4px 8px !important;
+  }
+  .maplibregl-popup-close-button:hover {
+    background: transparent !important;
+    color: #e2e8f0 !important;
+  }
 </style>
 </head>
 <body>
@@ -849,8 +862,11 @@
     }
   }
 
-  /* ===================== MAP ===================== */
+  /* ===================== MAP (VECTOR - MAPLIBRE) ===================== */
   let map = null;
+  
+  // 🔑 GANTI DENGAN API KEY CARTO KAMU DI SINI
+  const CARTO_API_KEY = "cb1_2ez2_1_84e9e596b117da5dc6f9359e";
 
   function magColor(mag) {
     const m = parseFloat(mag);
@@ -871,65 +887,79 @@
   }
 
   async function initMap(earthquakes) {
-    await new Promise((res, rej) => {
-      if (window.L) return res();
-      const s = document.createElement("script");
-      s.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
-      s.onload = res; s.onerror = rej;
-      document.head.appendChild(s);
-    });
-
     if (map) { map.remove(); map = null; }
 
-    map = L.map("map", {
-      center: [-2.5, 118],
+    // 1. Inisialisasi Peta Vector dengan Style Dark Matter dari CARTO
+    map = new maplibregl.Map({
+      container: "map",
+      style: `https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json?key=${CARTO_API_KEY}`,
+      center: [118, -2.5], // [Longitude, Latitude] -> Perhatikan urutannya terbalik dari Leaflet!
       zoom: 4,
-      zoomControl: true,
+      attributionControl: true
     });
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
-      subdomains: "abcd",
-      maxZoom: 18
-    }).addTo(map);
+    // Tambahkan kontrol zoom
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
 
+    // 2. Tambahkan Sesar Aktif (Fault Lines)
     try {
       const faultRes = await fetch("https://bmkg-content-inatews.storage.googleapis.com/indo_faults_lines.geojson");
       if (faultRes.ok) {
         const faultData = await faultRes.json();
-        L.geoJSON(faultData, {
-          style: { color: "#f97316", weight: 1.2, opacity: 0.6 }
-        }).addTo(map);
+        map.on("load", () => {
+          map.addSource("faults", { type: "geojson", data: faultData });
+          map.addLayer({
+            id: "faults-layer",
+            type: "line",
+            source: "faults",
+            paint: {
+              "line-color": "#f97316",
+              "line-width": 1.5,
+              "line-opacity": 0.7
+            }
+          });
+        });
       }
     } catch(e) { console.warn("Fault lines tidak bisa dimuat:", e); }
 
-    earthquakes.forEach(g => {
-      const lat = parseFloat(g.lintang);
-      const lon = parseFloat(g.bujur);
-      if (isNaN(lat) || isNaN(lon)) return;
+    // 3. Tambahkan Marker Gempa
+    map.on("load", () => {
+      earthquakes.forEach(g => {
+        const lat = parseFloat(g.lintang);
+        const lon = parseFloat(g.bujur);
+        if (isNaN(lat) || isNaN(lon)) return;
 
-      const color = magColor(g.mag);
-      const r     = magRadius(g.mag);
+        const color = magColor(g.mag);
+        const radius = magRadius(g.mag);
 
-      const circle = L.circleMarker([lat, lon], {
-        radius: r,
-        fillColor: color,
-        color: "#fff",
-        weight: 1,
-        opacity: 0.9,
-        fillOpacity: 0.85
-      }).addTo(map);
+        // Buat elemen HTML kustom untuk marker (lingkaran dengan border putih)
+        const el = document.createElement("div");
+        el.className = "custom-marker";
+        el.style.width = `${radius * 2}px`;
+        el.style.height = `${radius * 2}px`;
+        el.style.borderRadius = "50%";
+        el.style.backgroundColor = color;
+        el.style.border = "2px solid rgba(255, 255, 255, 0.8)";
+        el.style.boxShadow = `0 0 10px ${color}80`; // Efek glow
+        el.style.cursor = "pointer";
 
-      circle.bindPopup(`
-        <div class="popup-mag">M ${g.mag}</div>
-        <div class="popup-area">${g.area}</div>
-        <div class="popup-detail">
-          ${fmtUTC(g.waktu)}<br>
-          Depth: ${g.dalam} km<br>
-          ${g.lintang}, ${g.bujur}<br>
-          Status: ${g.status}
-        </div>
-      `);
+        // Tambahkan marker ke peta
+        new maplibregl.Marker({ element: el })
+          .setLngLat([lon, lat]) // MapLibre menggunakan format [Longitude, Latitude]
+          .setPopup(new maplibregl.Popup({ offset: 25, className: "custom-popup" }).setHTML(`
+            <div style="text-align: center;">
+              <div style="font-size: 18px; font-weight: 800; color: ${color}; margin-bottom: 4px;">M ${g.mag}</div>
+              <div style="font-weight: 600; color: #f1f5f9; margin-bottom: 6px;">${g.area}</div>
+              <div style="font-size: 12px; color: #94a3b8; line-height: 1.5;">
+                🕒 ${fmtUTC(g.waktu)}<br>
+                📏 Kedalaman: ${g.dalam} km<br>
+                📍 ${g.lintang}, ${g.bujur}<br>
+                📊 Status: ${g.status}
+              </div>
+            </div>
+          `))
+          .addTo(map);
+      });
     });
   }
 
