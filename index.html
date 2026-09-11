@@ -13,7 +13,11 @@
 <meta property="og:type" content="website">
 <meta name="google-site-verification" content="3_Fq9IDHc9sZGf_B4_UNEVAZLjT3ac4nlL5w4pBxdkw"/>
 <meta name="theme-color" content="#0f1117">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="alternate icon" href="/favicon.ico">
+<link rel="manifest" href="/site.webmanifest">
 
 <!-- 🗺️ LIBRARY PETA VECTOR (MAPLIBRE GL JS) -->
 <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
@@ -659,6 +663,17 @@
     return `${d}-${mo}-${y} ${hh}:${mi}:${ss} UTC`;
   }
 
+  // Konversi waktu gempa (UTC dari feed realtime BMKG) ke WIB (UTC+7)
+  function fmtWIB(waktu) {
+    const m = (waktu||"").match(/(\d{4})\/(\d{2})\/(\d{2})\D+(\d{2}):(\d{2}):(\d{2})/);
+    if (!m) return waktu;
+    const [,y,mo,d,hh,mi,ss] = m;
+    const dt = new Date(Date.UTC(+y, +mo - 1, +d, +hh, +mi, +ss));
+    dt.setUTCHours(dt.getUTCHours() + 7); // UTC -> WIB
+    const pad = n => String(n).padStart(2, "0");
+    return `${pad(dt.getUTCDate())}-${pad(dt.getUTCMonth()+1)}-${dt.getUTCFullYear()} ${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}:${pad(dt.getUTCSeconds())} WIB`;
+  }
+
   /* ===================== FORMAT COPY ===================== */
   function buildFormatLok(g) {
     const date  = fmtBMKG(g.Tanggal, g.Jam);
@@ -850,7 +865,10 @@
           <td style="white-space:nowrap">${g.dalam} km</td>
           <td>${g.area}<br><span style="color:#64748b;font-size:11px">${g.lintang}, ${g.bujur}</span></td>
           <td><span class="status-chip">${g.status}</span></td>
-          <td><button class="copy-btn" data-copy-src="realtime" data-copy-idx="${i}">Copy</button></td>`;
+          <td>
+            <button class="copy-btn" data-copy-src="realtime" data-copy-idx="${i}">Copy</button>
+            <button class="copy-btn" data-share-idx="${i}" title="Simpan/bagikan gambar" style="margin-left:6px">📸</button>
+          </td>`;
         const header = `<thead><tr><th>Time (UTC+7)</th><th>Mag</th><th>Depth</th><th>Location</th><th>Status</th><th></th></tr></thead>`;
         if (mode === "header-only") return header;
         if (mode === "row-only") return `<tr${isLatest ? ' class="latest-row"':''}>${cells}</tr>`;
@@ -895,7 +913,8 @@
       style: `https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json?key=${CARTO_API_KEY}`,
       center: [118, -2.5], // [Longitude, Latitude] -> Perhatikan urutannya terbalik dari Leaflet!
       zoom: 4,
-      attributionControl: true
+      attributionControl: true,
+      preserveDrawingBuffer: true // wajib true agar canvas peta bisa "difoto" untuk share card
     });
 
     // Tambahkan kontrol zoom
@@ -924,7 +943,7 @@
 
     // 3. Tambahkan Marker Gempa
     map.on("load", () => {
-      earthquakes.forEach(g => {
+      earthquakes.forEach((g, i) => {
         const lat = parseFloat(g.lintang);
         const lon = parseFloat(g.bujur);
         if (isNaN(lat) || isNaN(lon)) return;
@@ -961,6 +980,326 @@
           .addTo(map);
       });
     });
+  }
+
+  /* ===================== SHARE CARD (SIMPAN/SHARE GAMBAR GEMPA ALA APP BMKG) ===================== */
+  function drawRoundedRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    const words = String(text).split(" ");
+    let line = "";
+    let curY = y;
+    for (let n = 0; n < words.length; n++) {
+      const testLine = line + words[n] + " ";
+      if (ctx.measureText(testLine).width > maxWidth && n > 0) {
+        ctx.fillText(line.trim(), x, curY);
+        line = words[n] + " ";
+        curY += lineHeight;
+      } else {
+        line = testLine;
+      }
+    }
+    ctx.fillText(line.trim(), x, curY);
+    return curY;
+  }
+
+  function isMobileDevice() {
+    return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  }
+
+  function shareOrDownloadImage(canvas, filename) {
+    canvas.toBlob(async (blob) => {
+      if (!blob) return showToast("Gagal membuat gambar");
+      const file = new File([blob], filename, { type: "image/png" });
+      // Di HP: coba share sheet native dulu. Di PC/desktop: langsung simpan gambar.
+      if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: "Info Gempa · InaTEWS BMKG" });
+          return;
+        } catch (e) {
+          if (e && e.name === "AbortError") return; // user batal share, jangan force download
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      showToast("Gambar tersimpan!");
+    }, "image/png");
+  }
+
+  // ---- Format waktu ala app: "Sep 07, 2026" / "02:48:39 WIB (3 hari lalu)" ----
+  function parseWaktuUTC(waktu) {
+    const m = (waktu || "").match(/(\d{4})\/(\d{2})\/(\d{2})\D+(\d{2}):(\d{2}):(\d{2})/);
+    if (!m) return null;
+    const [, y, mo, d, hh, mi, ss] = m;
+    return new Date(Date.UTC(+y, +mo - 1, +d, +hh, +mi, +ss));
+  }
+  function fmtDateWIB(waktu) {
+    const dtUTC = parseWaktuUTC(waktu);
+    if (!dtUTC) return "-";
+    const dt = new Date(dtUTC.getTime() + 7 * 3600 * 1000);
+    return `${MONTHS_SHORT[dt.getUTCMonth()]} ${String(dt.getUTCDate()).padStart(2, "0")}, ${dt.getUTCFullYear()}`;
+  }
+  function fmtTimeWIB(waktu) {
+    const dtUTC = parseWaktuUTC(waktu);
+    if (!dtUTC) return "-";
+    const dt = new Date(dtUTC.getTime() + 7 * 3600 * 1000);
+    const pad = n => String(n).padStart(2, "0");
+    return `${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}:${pad(dt.getUTCSeconds())} WIB`;
+  }
+  function timeAgo(waktu) {
+    const dtUTC = parseWaktuUTC(waktu);
+    if (!dtUTC) return "";
+    const diffSec = Math.floor((Date.now() - dtUTC.getTime()) / 1000);
+    if (diffSec < 60) return "baru saja";
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)} minutes ago`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} hours ago`;
+    return `${Math.floor(diffSec / 86400)} days ago`;
+  }
+
+  // ---- Ikon-ikon kecil ala app (digambar manual, bukan SVG) ----
+  function iconPulse(ctx, cx, cy, r, color) {
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = 2.5; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 0.6, cy);
+    ctx.lineTo(cx - r * 0.22, cy);
+    ctx.lineTo(cx - r * 0.04, cy - r * 0.5);
+    ctx.lineTo(cx + r * 0.18, cy + r * 0.5);
+    ctx.lineTo(cx + r * 0.38, cy);
+    ctx.lineTo(cx + r * 0.6, cy);
+    ctx.stroke();
+    ctx.restore();
+  }
+  function iconTarget(ctx, cx, cy, r, color) {
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.38, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---- Nilai + satuan sejajar tengah, mis. "-7.30 LAT" ----
+  function valueWithUnit(ctx, value, unit, cx, y, valueFont, unitFont, valueColor, unitColor) {
+    ctx.font = valueFont;
+    const vw = ctx.measureText(value + " ").width;
+    ctx.font = unitFont;
+    const uw = ctx.measureText(unit).width;
+    let x = cx - (vw + uw) / 2;
+    ctx.textAlign = "left";
+    ctx.font = valueFont; ctx.fillStyle = valueColor;
+    ctx.fillText(value + " ", x, y);
+    x += vw;
+    ctx.font = unitFont; ctx.fillStyle = unitColor;
+    ctx.fillText(unit, x, y);
+  }
+
+  // ---- Marker besar gempa: pin merah + ikon detak + lingkaran akurasi merah muda ----
+  function drawBigMarker(ctx, mx, my, color) {
+    const r = 34;
+    // lingkaran akurasi (pink), di bawah ujung pin
+    ctx.beginPath();
+    ctx.fillStyle = "rgba(236,72,153,0.35)";
+    ctx.arc(mx, my + r * 1.9 + 8, 15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = "#ec4899";
+    ctx.stroke();
+
+    // badan pin (teardrop)
+    ctx.beginPath();
+    ctx.moveTo(mx - r, my);
+    ctx.bezierCurveTo(mx - r, my - r * 1.05, mx + r, my - r * 1.05, mx + r, my);
+    ctx.bezierCurveTo(mx + r, my + r * 0.85, mx, my + r * 1.9, mx, my + r * 1.9);
+    ctx.bezierCurveTo(mx, my + r * 1.9, mx - r, my + r * 0.85, mx - r, my);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.lineWidth = 4; ctx.strokeStyle = "#fff";
+    ctx.stroke();
+
+    // lingkaran putih + ikon detak di dalam pin
+    ctx.beginPath();
+    ctx.fillStyle = "#fff";
+    ctx.arc(mx, my, r * 0.62, 0, Math.PI * 2);
+    ctx.fill();
+    const s = r * 0.62;
+    ctx.strokeStyle = color; ctx.lineWidth = 3.5; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(mx - s * 0.7, my);
+    ctx.lineTo(mx - s * 0.25, my);
+    ctx.lineTo(mx - s * 0.05, my - s * 0.55);
+    ctx.lineTo(mx + s * 0.2, my + s * 0.55);
+    ctx.lineTo(mx + s * 0.45, my);
+    ctx.lineTo(mx + s * 0.7, my);
+    ctx.stroke();
+  }
+
+  // ---- Badge link website pojok kiri-bawah peta ----
+  function drawSiteBadge(ctx, mapAreaH) {
+    const text = "inatews.pages.dev";
+    ctx.font = "600 24px 'Segoe UI', sans-serif";
+    const padX = 20, h = 46;
+    const textW = ctx.measureText(text).width;
+    const w = textW + padX * 2;
+    const x = 40, y = mapAreaH - 40 - h;
+    drawRoundedRect(ctx, x, y, w, h, h / 2);
+    ctx.fillStyle = "rgba(10,12,16,0.75)";
+    ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.stroke();
+    ctx.fillStyle = "#e2e8f0";
+    ctx.textAlign = "left";
+    ctx.fillText(text, x + padX, y + h / 2 + 8);
+  }
+
+  async function generateShareCard(g) {
+    const lat = parseFloat(g.lintang), lon = parseFloat(g.bujur);
+    if (isNaN(lat) || isNaN(lon)) return showToast("Koordinat tidak valid");
+    showToast("Membuat gambar...");
+
+    const outW = 1080, outH = 1920, panelH = 360;
+    const hdScale = 2; // render 2x lebih tajam (mirip mode Retina/HD)
+    const mapAreaH = outH - panelH;
+    const color = magColor(g.mag);
+
+    // ---- 1. Render peta (dark-matter, HD) secara offscreen khusus untuk gambar ----
+    const hiddenBox = document.createElement("div");
+    hiddenBox.style.cssText = `position:fixed;left:-99999px;top:0;width:${outW}px;height:${mapAreaH}px;`;
+    document.body.appendChild(hiddenBox);
+
+    const exportMap = new maplibregl.Map({
+      container: hiddenBox,
+      style: `https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json?key=${CARTO_API_KEY}`,
+      center: [lon, lat],
+      zoom: 7.2,
+      pixelRatio: hdScale,
+      interactive: false,
+      attributionControl: false,
+      preserveDrawingBuffer: true
+    });
+
+    try {
+      await new Promise(resolve => {
+        exportMap.once("load", async () => {
+          try {
+            const faultRes = await fetch("https://bmkg-content-inatews.storage.googleapis.com/indo_faults_lines.geojson");
+            if (faultRes.ok) {
+              const faultData = await faultRes.json();
+              exportMap.addSource("faults", { type: "geojson", data: faultData });
+              exportMap.addLayer({ id: "faults-layer", type: "line", source: "faults", paint: { "line-color": "#f97316", "line-width": 1.5, "line-opacity": 0.75 } });
+            }
+          } catch (e) { /* lanjut walau garis sesar gagal dimuat */ }
+          resolve();
+        });
+      });
+      await new Promise(r => exportMap.once("idle", r));
+      await new Promise(r => setTimeout(r, 300));
+    } catch (e) { /* tetap lanjut capture walau ada kendala */ }
+
+    const mapCanvas = exportMap.getCanvas();
+    const mapW = mapCanvas.width, mapH = mapCanvas.height;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = outW * hdScale; canvas.height = outH * hdScale;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(hdScale, hdScale); // semua koordinat di bawah ini tetap pakai angka "logis" tapi hasil render jadi HD
+
+    ctx.fillStyle = "#0b0d12";
+    ctx.fillRect(0, 0, outW, outH);
+
+    // crop "cover" dari canvas peta
+    const srcAspect = mapW / mapH, dstAspect = outW / mapAreaH;
+    let sx, sy, sw, sh;
+    if (srcAspect > dstAspect) { sh = mapH; sw = mapH * dstAspect; sx = (mapW - sw) / 2; sy = 0; }
+    else { sw = mapW; sh = mapW / dstAspect; sx = 0; sy = (mapH - sh) / 2; }
+    ctx.drawImage(mapCanvas, sx, sy, sw, sh, 0, 0, outW, mapAreaH);
+
+    exportMap.remove();
+    hiddenBox.remove();
+
+    // ---- Marker + elemen dekoratif ala app ----
+    const mx = outW / 2, my = mapAreaH / 2 - 30;
+    drawBigMarker(ctx, mx, my, color);
+    drawSiteBadge(ctx, mapAreaH);
+
+    // ---- Bottom sheet ----
+    const panelY = mapAreaH;
+    ctx.fillStyle = "#15171c";
+    ctx.fillRect(0, panelY, outW, panelH);
+
+    // drag handle (chevron)
+    ctx.strokeStyle = "#4b5563"; ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(outW / 2 - 20, panelY + 30);
+    ctx.lineTo(outW / 2, panelY + 16);
+    ctx.lineTo(outW / 2 + 20, panelY + 30);
+    ctx.stroke();
+
+    let y = panelY + 78;
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#f9fafb";
+    ctx.font = "700 40px 'Segoe UI', sans-serif";
+    ctx.fillText(fmtDateWIB(g.waktu), 40, y);
+
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#e879f9";
+    ctx.font = "700 34px 'Segoe UI', sans-serif";
+    ctx.fillText(g.status ? g.status[0].toUpperCase() + g.status.slice(1) : "Confirmed", outW - 40, y);
+
+    y += 42;
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#9ca3af";
+    ctx.font = "500 26px 'Segoe UI', sans-serif";
+    ctx.fillText(`${fmtTimeWIB(g.waktu)}  (${timeAgo(g.waktu)})`, 40, y);
+
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "500 24px 'Segoe UI', sans-serif";
+    ctx.fillText("Status", outW - 40, y);
+
+    y += 40;
+    ctx.strokeStyle = "#262b36"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(outW - 40, y); ctx.stroke();
+
+    // ---- Baris statistik: Magnitude / Depth / Lat-Lon ----
+    const statY = y + 60;
+    const col1 = outW * 0.17, col2 = outW * 0.5, col3 = outW * 0.83;
+
+    iconPulse(ctx, col1, statY, 22, "#ef4444");
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#f9fafb"; ctx.font = "700 44px 'Segoe UI', sans-serif";
+    ctx.fillText(g.mag, col1, statY + 66);
+    ctx.fillStyle = "#9ca3af"; ctx.font = "500 24px 'Segoe UI', sans-serif";
+    ctx.fillText("Magnitude", col1, statY + 100);
+
+    iconTarget(ctx, col2, statY, 22, "#22c55e");
+    ctx.fillStyle = "#f9fafb"; ctx.font = "700 44px 'Segoe UI', sans-serif";
+    ctx.fillText(`${g.dalam} km`, col2, statY + 66);
+    ctx.fillStyle = "#9ca3af"; ctx.font = "500 24px 'Segoe UI', sans-serif";
+    ctx.fillText("Depth", col2, statY + 100);
+
+    iconTarget(ctx, col3, statY, 22, "#ef4444");
+    valueWithUnit(ctx, g.lintang, "LAT", col3, statY + 58, "700 34px 'Segoe UI', sans-serif", "500 22px 'Segoe UI', sans-serif", "#f9fafb", "#9ca3af");
+    valueWithUnit(ctx, g.bujur, "LON", col3, statY + 96, "700 34px 'Segoe UI', sans-serif", "500 22px 'Segoe UI', sans-serif", "#f9fafb", "#9ca3af");
+    ctx.textAlign = "left";
+
+    const filename = `gempa-${(g.area || "info").replace(/[^a-z0-9]+/gi, "_").toLowerCase()}-M${g.mag}.png`;
+    shareOrDownloadImage(canvas, filename);
   }
 
   // 5. PERINGATAN DINI TSUNAMI
@@ -1042,6 +1381,12 @@
   document.addEventListener("click", e => {
     const src = e.target.dataset?.lightbox;
     if (src) window.__openLightbox(src);
+
+    const shareIdx = e.target.dataset?.shareIdx;
+    if (shareIdx !== undefined) {
+      const g = store.realtime[parseInt(shareIdx, 10)];
+      if (g) generateShareCard(g);
+    }
   });
 
   loadAutoGempa();
