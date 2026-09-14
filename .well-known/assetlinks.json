@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "dev.xxgbrl.inatews.twa",
+        "sha256_cert_fingerprints": ["B7:24:F7:D4:70:FD:23:B8:39:BF:33:CA:B0:D9:E8:98:6E:3D:6C:D3:B4:E5:11:92:EE:B3:D9:2E:F5:B0:9B:47"]
+      }
+    }]
