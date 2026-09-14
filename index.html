@@ -861,6 +861,7 @@
         status: getVal(g,"status")
       }));
       store.realtime = evts;
+      shareCardCache.clear(); // list baru = index bisa merujuk gempa lain, buang cache lama
 
       function buildRow(g, i, mode) {
         const isLatest = i === 0;
@@ -1020,19 +1021,71 @@
     return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   }
 
-  function shareOrDownloadImage(canvas, filename) {
-    canvas.toBlob(async (blob) => {
-      if (!blob) return showToast("Gagal membuat gambar");
-      const file = new File([blob], filename, { type: "image/png" });
-      // Di HP: coba share sheet native dulu. Di PC/desktop: langsung simpan gambar.
-      if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: [file] })) {
+  // Cache garis sesar biar tidak fetch berkali-kali tiap kali share gambar dibuat
+  let faultsGeoCache = null;
+  async function getFaultsGeo() {
+    if (faultsGeoCache) return faultsGeoCache;
+    const res = await fetch("https://bmkg-content-inatews.storage.googleapis.com/indo_faults_lines.geojson");
+    if (!res.ok) throw new Error("gagal memuat garis sesar");
+    faultsGeoCache = await res.json();
+    return faultsGeoCache;
+  }
+
+  // Cache promise gambar-share yang sedang/sudah dibuat, per index gempa,
+  // supaya proses berat (render peta dsb) bisa dimulai lebih awal (saat
+  // tombol ditekan/disentuh) sebelum event "click" beneran menyala.
+  const shareCardCache = new Map();
+  function getOrBuildShareCard(idx, g) {
+    if (!shareCardCache.has(idx)) {
+      shareCardCache.set(idx, buildShareCardBlob(g).catch(() => null));
+    }
+    return shareCardCache.get(idx);
+  }
+
+  // Dipanggil dari event "click" tombol share — dibuat seringan mungkin
+  // (idealnya cuma menunggu Promise yang sudah/hampir selesai) supaya
+  // navigator.share() masih terhitung dipicu langsung oleh user gesture.
+  // Sebelumnya seluruh proses berat (render peta, fetch garis sesar, dst)
+  // baru mulai SAAT tombol diklik, sehingga saat sampai ke navigator.share()
+  // browser sudah menganggap gesture kedaluwarsa dan diam-diam gagal,
+  // lalu selalu fallback ke download.
+  async function handleShareClick(idx, g) {
+    const btn = document.querySelector(`[data-share-idx="${idx}"]`);
+    let result;
+    try {
+      if (btn) btn.disabled = true;
+      result = await getOrBuildShareCard(idx, g);
+      if (!result) throw new Error("Gagal membuat gambar");
+    } catch (e) {
+      if (btn) btn.disabled = false;
+      return showToast("Gagal membuat gambar");
+    }
+    if (btn) btn.disabled = false;
+    doShareOrDownload(result.blob, result.filename);
+  }
+
+  function doShareOrDownload(blob, filename) {
+    const file = new File([blob], filename, { type: "image/png" });
+    const tryShare = async () => {
+      // Di HP: coba share sheet native dulu. Kita coba navigator.share()
+      // langsung (bukan cuma mengandalkan navigator.canShare() dulu), karena
+      // beberapa browser mobile kadang melaporkan canShare() secara tidak
+      // akurat walau share() sebenarnya bisa jalan.
+      if (isMobileDevice() && navigator.share) {
         try {
-          await navigator.share({ files: [file], title: "Info Gempa · InaTEWS BMKG" });
-          return;
+          const canShareFiles = !navigator.canShare || navigator.canShare({ files: [file] });
+          if (canShareFiles) {
+            await navigator.share({ files: [file], title: "Info Gempa · InaTEWS BMKG" });
+            return true;
+          }
         } catch (e) {
-          if (e && e.name === "AbortError") return; // user batal share, jangan force download
+          if (e && e.name === "AbortError") return true; // user batal share, jangan force download
         }
       }
+      return false;
+    };
+    tryShare().then(shared => {
+      if (shared) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -1042,7 +1095,7 @@
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
       showToast("Gambar tersimpan!");
-    }, "image/png");
+    });
   }
 
   // ---- Format waktu ala app: "Sep 07, 2026" / "02:48:39 WIB (3 hari lalu)" ----
@@ -1172,10 +1225,9 @@
     ctx.fillText(text, x + padX, y + h / 2 + 8);
   }
 
-  async function generateShareCard(g) {
+  async function buildShareCardBlob(g) {
     const lat = parseFloat(g.lintang), lon = parseFloat(g.bujur);
-    if (isNaN(lat) || isNaN(lon)) return showToast("Koordinat tidak valid");
-    showToast("Membuat gambar...");
+    if (isNaN(lat) || isNaN(lon)) throw new Error("Koordinat tidak valid");
 
     const outW = 1080, outH = 1920, panelH = 360;
     const hdScale = 2; // render 2x lebih tajam (mirip mode Retina/HD)
@@ -1202,12 +1254,9 @@
       await new Promise(resolve => {
         exportMap.once("load", async () => {
           try {
-            const faultRes = await fetch("https://bmkg-content-inatews.storage.googleapis.com/indo_faults_lines.geojson");
-            if (faultRes.ok) {
-              const faultData = await faultRes.json();
-              exportMap.addSource("faults", { type: "geojson", data: faultData });
-              exportMap.addLayer({ id: "faults-layer", type: "line", source: "faults", paint: { "line-color": "#f97316", "line-width": 1.5, "line-opacity": 0.75 } });
-            }
+            const faultData = await getFaultsGeo();
+            exportMap.addSource("faults", { type: "geojson", data: faultData });
+            exportMap.addLayer({ id: "faults-layer", type: "line", source: "faults", paint: { "line-color": "#f97316", "line-width": 1.5, "line-opacity": 0.75 } });
           } catch (e) { /* lanjut walau garis sesar gagal dimuat */ }
           resolve();
         });
@@ -1304,7 +1353,9 @@
     ctx.textAlign = "left";
 
     const filename = `gempa-${(g.area || "info").replace(/[^a-z0-9]+/gi, "_").toLowerCase()}-M${g.mag}.png`;
-    shareOrDownloadImage(canvas, filename);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("Gagal membuat gambar");
+    return { blob, filename };
   }
 
   // 5. PERINGATAN DINI TSUNAMI
@@ -1383,14 +1434,28 @@
   }
 
   /* ===================== INIT ===================== */
+  // Mulai generate gambar SEDINI MUNGKIN — begitu jari/kursor menyentuh
+  // tombol (pointerdown), bukan menunggu event "click" resmi menyala.
+  // Ini memberi beberapa puluh milidetik ekstra untuk proses berat (render
+  // peta dsb) selesai lebih dulu, sehingga saat "click" benar-benar terjadi,
+  // navigator.share() masih terhitung dipicu langsung oleh user gesture.
+  document.addEventListener("pointerdown", e => {
+    const shareIdx = e.target.closest?.("[data-share-idx]")?.dataset?.shareIdx;
+    if (shareIdx !== undefined) {
+      const g = store.realtime[parseInt(shareIdx, 10)];
+      if (g) getOrBuildShareCard(parseInt(shareIdx, 10), g);
+    }
+  });
+
   document.addEventListener("click", e => {
     const src = e.target.dataset?.lightbox;
     if (src) window.__openLightbox(src);
 
     const shareIdx = e.target.dataset?.shareIdx;
     if (shareIdx !== undefined) {
-      const g = store.realtime[parseInt(shareIdx, 10)];
-      if (g) generateShareCard(g);
+      const idx = parseInt(shareIdx, 10);
+      const g = store.realtime[idx];
+      if (g) handleShareClick(idx, g);
     }
   });
 
