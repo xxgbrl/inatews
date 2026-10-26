@@ -13,16 +13,7 @@
 <meta property="og:type" content="website">
 <meta name="google-site-verification" content="3_Fq9IDHc9sZGf_B4_UNEVAZLjT3ac4nlL5w4pBxdkw"/>
 <meta name="theme-color" content="#0f1117">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-<link rel="alternate icon" href="/favicon.ico">
-<link rel="manifest" href="/site.webmanifest">
-<meta name="theme-color" content="#0f1117">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="InaTEWS">
+<link rel="icon" href="/favicon.ico">
 
 <!-- 🗺️ LIBRARY PETA VECTOR (MAPLIBRE GL JS) -->
 <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
@@ -668,13 +659,12 @@
     return `${d}-${mo}-${y} ${hh}:${mi}:${ss} UTC`;
   }
 
-  // Konversi waktu gempa (UTC dari feed realtime BMKG) ke WIB (UTC+7)
   function fmtWIB(waktu) {
     const m = (waktu||"").match(/(\d{4})\/(\d{2})\/(\d{2})\D+(\d{2}):(\d{2}):(\d{2})/);
     if (!m) return waktu;
     const [,y,mo,d,hh,mi,ss] = m;
     const dt = new Date(Date.UTC(+y, +mo - 1, +d, +hh, +mi, +ss));
-    dt.setUTCHours(dt.getUTCHours() + 7); // UTC -> WIB
+    dt.setUTCHours(dt.getUTCHours() + 7);
     const pad = n => String(n).padStart(2, "0");
     return `${pad(dt.getUTCDate())}-${pad(dt.getUTCMonth()+1)}-${dt.getUTCFullYear()} ${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}:${pad(dt.getUTCSeconds())} WIB`;
   }
@@ -758,7 +748,7 @@
 
   /* ===================== SECTION LOADERS ===================== */
 
-  // 1. GEMPA TERBARU (JSON)
+  // 1. GEMPA TERBARU
   async function loadAutoGempa() {
     const el = document.getElementById("autogempa");
     try {
@@ -787,7 +777,7 @@
     }
   }
 
-  // 2. GEMPA TERKINI M≥5 (XML)
+  // 2. GEMPA TERKINI M≥5
   async function loadGempaTerkini() {
     const el = document.getElementById("gempaterkini");
     const url = "https://bmkg-content-inatews.storage.googleapis.com/last30event.xml";
@@ -815,7 +805,7 @@
     }
   }
 
-  // 3. GEMPA DIRASAKAN (XML)
+  // 3. GEMPA DIRASAKAN
   async function loadGempaDirasakan() {
     const el = document.getElementById("gempadirasakan");
     const url = "https://bmkg-content-inatews.storage.googleapis.com/last30feltevent.xml";
@@ -844,7 +834,7 @@
     }
   }
 
-  // 4. GEMPA REALTIME (XML)
+  // 4. GEMPA REALTIME
   async function loadGempaRealtime() {
     const el = document.getElementById("realtime");
     const url = "https://bmkg-content-inatews.storage.googleapis.com/live30event.xml";
@@ -861,7 +851,7 @@
         status: getVal(g,"status")
       }));
       store.realtime = evts;
-      shareCardCache.clear(); // list baru = index bisa merujuk gempa lain, buang cache lama
+      shareCardCache.clear();
 
       function buildRow(g, i, mode) {
         const isLatest = i === 0;
@@ -889,7 +879,6 @@
   /* ===================== MAP (VECTOR - MAPLIBRE) ===================== */
   let map = null;
   
-  // 🔑 GANTI DENGAN API KEY CARTO KAMU DI SINI
   const CARTO_API_KEY = "cb1_2ez2_1_84e9e596b117da5dc6f9359e";
 
   function magColor(mag) {
@@ -913,17 +902,16 @@
   async function initMap(earthquakes) {
     if (map) { map.remove(); map = null; }
 
-    // 1. Inisialisasi Peta Vector dengan Style Dark Matter dari CARTO
+    // 1. Inisialisasi Peta Vector
     map = new maplibregl.Map({
       container: "map",
       style: `https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json?key=${CARTO_API_KEY}`,
-      center: [118, -2.5], // [Longitude, Latitude] -> Perhatikan urutannya terbalik dari Leaflet!
+      center: [118, -2.5],
       zoom: 4,
       attributionControl: true,
-      preserveDrawingBuffer: true // wajib true agar canvas peta bisa "difoto" untuk share card
+      preserveDrawingBuffer: true
     });
 
-    // Tambahkan kontrol zoom
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
     // 2. Tambahkan Sesar Aktif (Fault Lines)
@@ -957,7 +945,6 @@
         const color = magColor(g.mag);
         const radius = magRadius(g.mag);
 
-        // Buat elemen HTML kustom untuk marker (lingkaran dengan border putih)
         const el = document.createElement("div");
         el.className = "custom-marker";
         el.style.width = `${radius * 2}px`;
@@ -968,9 +955,8 @@
         el.style.boxShadow = `0 0 10px ${color}80`; // Efek glow
         el.style.cursor = "pointer";
 
-        // Tambahkan marker ke peta
         new maplibregl.Marker({ element: el })
-          .setLngLat([lon, lat]) // MapLibre menggunakan format [Longitude, Latitude]
+          .setLngLat([lon, lat])
           .setPopup(new maplibregl.Popup({ offset: 25, className: "custom-popup" }).setHTML(`
             <div style="text-align: center;">
               <div style="font-size: 18px; font-weight: 800; color: ${color}; margin-bottom: 4px;">M ${g.mag}</div>
@@ -988,7 +974,7 @@
     });
   }
 
-  /* ===================== SHARE CARD (SIMPAN/SHARE GAMBAR GEMPA ALA APP BMKG) ===================== */
+  /* ===================== SHARE CARD ===================== */
   function drawRoundedRect(ctx, x, y, w, h, r) {
     ctx.beginPath();
     ctx.moveTo(x + r, y);
@@ -1021,7 +1007,6 @@
     return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   }
 
-  // Cache garis sesar biar tidak fetch berkali-kali tiap kali share gambar dibuat
   let faultsGeoCache = null;
   async function getFaultsGeo() {
     if (faultsGeoCache) return faultsGeoCache;
@@ -1031,9 +1016,6 @@
     return faultsGeoCache;
   }
 
-  // Cache promise gambar-share yang sedang/sudah dibuat, per index gempa,
-  // supaya proses berat (render peta dsb) bisa dimulai lebih awal (saat
-  // tombol ditekan/disentuh) sebelum event "click" beneran menyala.
   const shareCardCache = new Map();
   function getOrBuildShareCard(idx, g) {
     if (!shareCardCache.has(idx)) {
@@ -1042,13 +1024,6 @@
     return shareCardCache.get(idx);
   }
 
-  // Dipanggil dari event "click" tombol share — dibuat seringan mungkin
-  // (idealnya cuma menunggu Promise yang sudah/hampir selesai) supaya
-  // navigator.share() masih terhitung dipicu langsung oleh user gesture.
-  // Sebelumnya seluruh proses berat (render peta, fetch garis sesar, dst)
-  // baru mulai SAAT tombol diklik, sehingga saat sampai ke navigator.share()
-  // browser sudah menganggap gesture kedaluwarsa dan diam-diam gagal,
-  // lalu selalu fallback ke download.
   async function handleShareClick(idx, g) {
     const btn = document.querySelector(`[data-share-idx="${idx}"]`);
     let result;
@@ -1067,10 +1042,6 @@
   function doShareOrDownload(blob, filename) {
     const file = new File([blob], filename, { type: "image/png" });
     const tryShare = async () => {
-      // Di HP: coba share sheet native dulu. Kita coba navigator.share()
-      // langsung (bukan cuma mengandalkan navigator.canShare() dulu), karena
-      // beberapa browser mobile kadang melaporkan canShare() secara tidak
-      // akurat walau share() sebenarnya bisa jalan.
       if (isMobileDevice() && navigator.share) {
         try {
           const canShareFiles = !navigator.canShare || navigator.canShare({ files: [file] });
@@ -1079,7 +1050,7 @@
             return true;
           }
         } catch (e) {
-          if (e && e.name === "AbortError") return true; // user batal share, jangan force download
+          if (e && e.name === "AbortError") return true;
         }
       }
       return false;
@@ -1098,7 +1069,6 @@
     });
   }
 
-  // ---- Format waktu ala app: "Sep 07, 2026" / "02:48:39 WIB (3 hari lalu)" ----
   function parseWaktuUTC(waktu) {
     const m = (waktu || "").match(/(\d{4})\/(\d{2})\/(\d{2})\D+(\d{2}):(\d{2}):(\d{2})/);
     if (!m) return null;
@@ -1128,7 +1098,6 @@
     return `${Math.floor(diffSec / 86400)} days ago`;
   }
 
-  // ---- Ikon-ikon kecil ala app (digambar manual, bukan SVG) ----
   function iconPulse(ctx, cx, cy, r, color) {
     ctx.save();
     ctx.strokeStyle = color; ctx.lineWidth = 3;
@@ -1152,7 +1121,6 @@
     ctx.restore();
   }
 
-  // ---- Nilai + satuan sejajar tengah, mis. "-7.30 LAT" ----
   function valueWithUnit(ctx, value, unit, cx, y, valueFont, unitFont, valueColor, unitColor) {
     ctx.font = valueFont;
     const vw = ctx.measureText(value + " ").width;
@@ -1167,10 +1135,8 @@
     ctx.fillText(unit, x, y);
   }
 
-  // ---- Marker besar gempa: pin merah + ikon detak + lingkaran akurasi merah muda ----
   function drawBigMarker(ctx, mx, my, color) {
     const r = 34;
-    // lingkaran akurasi (pink), di bawah ujung pin
     ctx.beginPath();
     ctx.fillStyle = "rgba(236,72,153,0.35)";
     ctx.arc(mx, my + r * 1.9 + 8, 15, 0, Math.PI * 2);
@@ -1178,7 +1144,6 @@
     ctx.lineWidth = 3; ctx.strokeStyle = "#ec4899";
     ctx.stroke();
 
-    // badan pin (teardrop)
     ctx.beginPath();
     ctx.moveTo(mx - r, my);
     ctx.bezierCurveTo(mx - r, my - r * 1.05, mx + r, my - r * 1.05, mx + r, my);
@@ -1190,7 +1155,6 @@
     ctx.lineWidth = 4; ctx.strokeStyle = "#fff";
     ctx.stroke();
 
-    // lingkaran putih + ikon detak di dalam pin
     ctx.beginPath();
     ctx.fillStyle = "#fff";
     ctx.arc(mx, my, r * 0.62, 0, Math.PI * 2);
@@ -1207,7 +1171,6 @@
     ctx.stroke();
   }
 
-  // ---- Badge link website pojok kiri-bawah peta ----
   function drawSiteBadge(ctx, mapAreaH) {
     const text = "inatews.pages.dev";
     ctx.font = "600 24px 'Segoe UI', sans-serif";
@@ -1230,11 +1193,10 @@
     if (isNaN(lat) || isNaN(lon)) throw new Error("Koordinat tidak valid");
 
     const outW = 1080, outH = 1920, panelH = 360;
-    const hdScale = 2; // render 2x lebih tajam (mirip mode Retina/HD)
+    const hdScale = 2;
     const mapAreaH = outH - panelH;
     const color = magColor(g.mag);
 
-    // ---- 1. Render peta (dark-matter, HD) secara offscreen khusus untuk gambar ----
     const hiddenBox = document.createElement("div");
     hiddenBox.style.cssText = `position:fixed;left:-99999px;top:0;width:${outW}px;height:${mapAreaH}px;`;
     document.body.appendChild(hiddenBox);
@@ -1257,13 +1219,13 @@
             const faultData = await getFaultsGeo();
             exportMap.addSource("faults", { type: "geojson", data: faultData });
             exportMap.addLayer({ id: "faults-layer", type: "line", source: "faults", paint: { "line-color": "#f97316", "line-width": 1.5, "line-opacity": 0.75 } });
-          } catch (e) { /* lanjut walau garis sesar gagal dimuat */ }
+          } catch (e) {  }
           resolve();
         });
       });
       await new Promise(r => exportMap.once("idle", r));
       await new Promise(r => setTimeout(r, 300));
-    } catch (e) { /* tetap lanjut capture walau ada kendala */ }
+    } catch (e) {  }
 
     const mapCanvas = exportMap.getCanvas();
     const mapW = mapCanvas.width, mapH = mapCanvas.height;
@@ -1271,12 +1233,11 @@
     const canvas = document.createElement("canvas");
     canvas.width = outW * hdScale; canvas.height = outH * hdScale;
     const ctx = canvas.getContext("2d");
-    ctx.scale(hdScale, hdScale); // semua koordinat di bawah ini tetap pakai angka "logis" tapi hasil render jadi HD
+    ctx.scale(hdScale, hdScale);
 
     ctx.fillStyle = "#0b0d12";
     ctx.fillRect(0, 0, outW, outH);
 
-    // crop "cover" dari canvas peta
     const srcAspect = mapW / mapH, dstAspect = outW / mapAreaH;
     let sx, sy, sw, sh;
     if (srcAspect > dstAspect) { sh = mapH; sw = mapH * dstAspect; sx = (mapW - sw) / 2; sy = 0; }
@@ -1286,17 +1247,14 @@
     exportMap.remove();
     hiddenBox.remove();
 
-    // ---- Marker + elemen dekoratif ala app ----
     const mx = outW / 2, my = mapAreaH / 2 - 30;
     drawBigMarker(ctx, mx, my, color);
     drawSiteBadge(ctx, mapAreaH);
 
-    // ---- Bottom sheet ----
     const panelY = mapAreaH;
     ctx.fillStyle = "#15171c";
     ctx.fillRect(0, panelY, outW, panelH);
 
-    // drag handle (chevron)
     ctx.strokeStyle = "#4b5563"; ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.lineJoin = "round";
     ctx.beginPath();
     ctx.moveTo(outW / 2 - 20, panelY + 30);
@@ -1330,7 +1288,6 @@
     ctx.strokeStyle = "#262b36"; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(outW - 40, y); ctx.stroke();
 
-    // ---- Baris statistik: Magnitude / Depth / Lat-Lon ----
     const statY = y + 60;
     const col1 = outW * 0.17, col2 = outW * 0.5, col3 = outW * 0.83;
 
@@ -1433,12 +1390,6 @@
     }
   }
 
-  /* ===================== INIT ===================== */
-  // Mulai generate gambar SEDINI MUNGKIN — begitu jari/kursor menyentuh
-  // tombol (pointerdown), bukan menunggu event "click" resmi menyala.
-  // Ini memberi beberapa puluh milidetik ekstra untuk proses berat (render
-  // peta dsb) selesai lebih dulu, sehingga saat "click" benar-benar terjadi,
-  // navigator.share() masih terhitung dipicu langsung oleh user gesture.
   document.addEventListener("pointerdown", e => {
     const shareIdx = e.target.closest?.("[data-share-idx]")?.dataset?.shareIdx;
     if (shareIdx !== undefined) {
@@ -1468,13 +1419,15 @@
   });
 </script>
 <script>
-  // Daftarkan service worker supaya situs ini bisa "diinstall" jadi app (PWA)
   if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js").catch((err) => {
-        console.warn("Gagal mendaftarkan service worker:", err);
-      });
-    });
+    navigator.serviceWorker.getRegistrations()
+      .then((regs) => regs.forEach((r) => r.unregister()))
+      .catch(() => {});
+  }
+  if ("caches" in window) {
+    caches.keys()
+      .then((keys) => keys.forEach((k) => caches.delete(k)))
+      .catch(() => {});
   }
 </script>
 </body>

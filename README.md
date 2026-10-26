@@ -5,9 +5,8 @@ Dashboard tidak resmi untuk memantau informasi gempa bumi dan peringatan dini ts
 **🔴 Live demo:**
 - https://inatews.pages.dev
 - https://inatews.netlify.app
-- https://xxgbrl.github.io/inatews
 
-> ⚠️ Ini adalah proyek independen/pribadi dan **bukan situs resmi BMKG**. Semua data gempa & tsunami bersumber dari API publik BMKG (`data.bmkg.go.id` dan `bmkg-content-inatews.storage.googleapis.com`). Untuk informasi resmi, selalu rujuk ke [inatews.bmkg.go.id](https://inatews.bmkg.go.id) atau kanal resmi BMKG lainnya.
+> ⚠️ Ini adalah proyek independen/pribadi dan **bukan situs resmi BMKG**. Semua data gempa & tsunami bersumber dari API publik BMKG (`data.bmkg.go.id`). Untuk informasi resmi, selalu rujuk ke [inatews.bmkg.go.id](https://inatews.bmkg.go.id) atau kanal resmi BMKG lainnya.
 
 ## ✨ Fitur
 
@@ -55,12 +54,8 @@ Proyek ini menggunakan API key CARTO (basemap peta) yang disimpan langsung di `i
 inatews/
 ├── index.html      # seluruh markup, styling, dan logic aplikasi
 ├── favicon.ico
-├── favicon-16x16.png
-├── favicon-32x32.png
-├── apple-touch-icon.png
-├── android-chrome-192x192.png
-├── android-chrome-512x512.png
-├── site.webmanifest
+├── robots.txt
+├── sitemap.xml
 ├── LICENSE
 └── README.md
 ```
