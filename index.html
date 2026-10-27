@@ -15,7 +15,7 @@
 <meta name="theme-color" content="#0f1117">
 <link rel="icon" href="/favicon.ico">
 
-<!-- 🗺️ LIBRARY PETA VECTOR (MAPLIBRE GL JS) -->
+<!-- LIBRARY PETA VECTOR -->
 <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
 <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 
@@ -382,7 +382,6 @@
     pointer-events: none;
   }
 
-  /* 🗺️ CSS KHUSUS POPUP MAPLIBRE (DARK MODE) */
   .maplibregl-popup-content {
     background: #1e2330 !important;
     border: 1px solid #3d4a63 !important;
@@ -468,7 +467,7 @@
   /* ===================== HELPERS ===================== */
   const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  /* ===================== PARSE XML CAP ===================== */
+  /* ===================== PARSE ===================== */
   function parseCAPInfos(text) {
     const xml = new DOMParser().parseFromString(text, "application/xml");
     if (xml.querySelector("parsererror")) throw new Error("gagal parse XML");
@@ -496,7 +495,7 @@
     });
   }
 
-  /* ===================== LIGHTBOX WITH ZOOM + PAN ===================== */
+  /* ===================== LIGHTBOX ===================== */
   (function() {
     let scale = 1, minScale = 1, maxScale = 5;
     let panX = 0, panY = 0;
@@ -876,7 +875,7 @@
     }
   }
 
-  /* ===================== MAP (VECTOR - MAPLIBRE) ===================== */
+  /* ===================== MAP ===================== */
   let map = null;
   
   const CARTO_API_KEY = "cb1_2ez2_1_84e9e596b117da5dc6f9359e";
@@ -902,7 +901,6 @@
   async function initMap(earthquakes) {
     if (map) { map.remove(); map = null; }
 
-    // 1. Inisialisasi Peta Vector
     map = new maplibregl.Map({
       container: "map",
       style: `https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json?key=${CARTO_API_KEY}`,
@@ -914,7 +912,6 @@
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
-    // 2. Tambahkan Sesar Aktif (Fault Lines)
     try {
       const faultRes = await fetch("https://bmkg-content-inatews.storage.googleapis.com/indo_faults_lines.geojson");
       if (faultRes.ok) {
@@ -935,7 +932,6 @@
       }
     } catch(e) { console.warn("Fault lines tidak bisa dimuat:", e); }
 
-    // 3. Tambahkan Marker Gempa
     map.on("load", () => {
       earthquakes.forEach((g, i) => {
         const lat = parseFloat(g.lintang);
@@ -952,7 +948,7 @@
         el.style.borderRadius = "50%";
         el.style.backgroundColor = color;
         el.style.border = "2px solid rgba(255, 255, 255, 0.8)";
-        el.style.boxShadow = `0 0 10px ${color}80`; // Efek glow
+        el.style.boxShadow = `0 0 10px ${color}80`;
         el.style.cursor = "pointer";
 
         new maplibregl.Marker({ element: el })
@@ -1192,7 +1188,7 @@
     const lat = parseFloat(g.lintang), lon = parseFloat(g.bujur);
     if (isNaN(lat) || isNaN(lon)) throw new Error("Koordinat tidak valid");
 
-    const outW = 1080, outH = 1920, panelH = 360;
+    const outW = 1080, outH = 1920, panelH = 480;
     const hdScale = 2;
     const mapAreaH = outH - panelH;
     const color = magColor(g.mag);
@@ -1309,6 +1305,35 @@
     valueWithUnit(ctx, g.bujur, "LON", col3, statY + 96, "700 34px 'Segoe UI', sans-serif", "500 22px 'Segoe UI', sans-serif", "#f9fafb", "#9ca3af");
     ctx.textAlign = "left";
 
+    y = statY + 140;
+    ctx.strokeStyle = "#262b36"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(outW - 40, y); ctx.stroke();
+
+    const icoSize = 64, icoX = 40, icoY = y + 24, icoCx = icoX + icoSize / 2, icoCy = icoY + icoSize / 2;
+    ctx.fillStyle = "#3d2c14";
+    drawRoundedRect(ctx, icoX, icoY, icoSize, icoSize, 16);
+    ctx.fill();
+    ctx.save();
+    ctx.translate(icoCx, icoCy + 2);
+    ctx.fillStyle = "#e0392b";
+    ctx.beginPath();
+    ctx.moveTo(0, 20);
+    ctx.bezierCurveTo(-4, 12, -12, 6, -12, -4);
+    ctx.arc(0, -4, 12, Math.PI, 0, false);
+    ctx.bezierCurveTo(12, 6, 4, 12, 0, 20);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#7a1d14";
+    ctx.beginPath(); ctx.arc(0, -4, 4.5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    ctx.textAlign = "left";
+    const txtX = icoX + icoSize + 24;
+    ctx.fillStyle = "#8791c4"; ctx.font = "500 22px 'Segoe UI', sans-serif";
+    ctx.fillText("F-E Region", txtX, icoCy - 9);
+    ctx.fillStyle = "#f3f4f8"; ctx.font = "700 28px 'Segoe UI', sans-serif";
+    ctx.fillText(g.area, txtX, icoCy + 22);
+
     const filename = `gempa-${(g.area || "info").replace(/[^a-z0-9]+/gi, "_").toLowerCase()}-M${g.mag}.png`;
     const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
     if (!blob) throw new Error("Gagal membuat gambar");
@@ -1390,6 +1415,7 @@
     }
   }
 
+  /* ===================== INIT ===================== */
   document.addEventListener("pointerdown", e => {
     const shareIdx = e.target.closest?.("[data-share-idx]")?.dataset?.shareIdx;
     if (shareIdx !== undefined) {
@@ -1417,18 +1443,6 @@
   loadGempaRealtime().then(() => {
     if (store.realtime.length > 0) initMap(store.realtime);
   });
-</script>
-<script>
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.getRegistrations()
-      .then((regs) => regs.forEach((r) => r.unregister()))
-      .catch(() => {});
-  }
-  if ("caches" in window) {
-    caches.keys()
-      .then((keys) => keys.forEach((k) => caches.delete(k)))
-      .catch(() => {});
-  }
 </script>
 </body>
 </html>
